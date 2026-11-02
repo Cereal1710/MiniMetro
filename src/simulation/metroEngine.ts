@@ -624,6 +624,13 @@ export class MetroEngine {
       const totalSegments = line.isLoop ? sIds.length : sIds.length - 1;
       if (totalSegments <= 0) continue;
 
+      // Auto-recover any train that was accidentally immobilized by previous terminus/stuck logic
+      if (train.isStuck && (!train.breakdownTimer || train.breakdownTimer <= 0)) {
+        train.isStuck = false;
+        train.stuckTimer = 0;
+        if (train.dwellingTime > 2) train.dwellingTime = 0.5;
+      }
+
       // If train is experiencing a mechanical breakdown
       if (train.breakdownTimer && train.breakdownTimer > 0) {
         train.breakdownTimer -= simDt;
@@ -634,10 +641,28 @@ export class MetroEngine {
         continue;
       }
 
+      // If train is stuck at a station (only for manual stuck testing)
+      if (train.isStuck) {
+        train.stuckTimer = (train.stuckTimer || 0) + simDt;
+        continue;
+      }
+
       // If train is docked at depot station
       if (train.isDockedAtDepot) {
         continue;
       }
+
+      // Sanitize progress and segmentIndex
+      if (typeof train.progress !== 'number' || isNaN(train.progress) || train.progress < 0) {
+        train.progress = 0;
+      }
+      if (typeof train.dwellingTime !== 'number' || isNaN(train.dwellingTime) || train.dwellingTime < 0) {
+        train.dwellingTime = 0;
+      }
+      if (typeof train.segmentIndex !== 'number' || isNaN(train.segmentIndex)) {
+        train.segmentIndex = 0;
+      }
+      train.segmentIndex = Math.max(0, Math.min(train.segmentIndex, totalSegments - 1));
 
       // If dwelling at station
       if (train.dwellingTime > 0) {
@@ -649,7 +674,7 @@ export class MetroEngine {
       }
 
       // Calculate segment length for realistic travel speed
-      const segIdx = Math.min(train.segmentIndex, totalSegments - 1);
+      const segIdx = Math.max(0, Math.min(train.segmentIndex, totalSegments - 1));
       const uId = sIds[segIdx];
       const vId = line.isLoop && segIdx === sIds.length - 1 ? sIds[0] : sIds[segIdx + 1];
 
@@ -675,24 +700,26 @@ export class MetroEngine {
         if (otherTrain.id === train.id || otherTrain.lineId !== line.id) continue;
         if (otherTrain.isDockedAtDepot) continue;
 
-        // Same segment and same direction ahead within 0.22 progress distance
+        // Same segment and same direction ahead:
         if (otherTrain.segmentIndex === train.segmentIndex && otherTrain.direction === train.direction) {
-          const diff = (otherTrain.progress - train.progress) * train.direction;
-          if (diff > 0 && diff < 0.22) {
+          // Both trains are advancing progress 0 -> 1 along the segment.
+          // The other train is ahead if otherTrain.progress > train.progress.
+          const diff = otherTrain.progress - train.progress;
+          if (diff > 0.03 && diff < 0.25) {
             isCongested = true;
             break;
           }
         }
         // Approaching station that is currently occupied by a dwelling train
         const targetStationId = train.direction === 1 ? vId : uId;
-        if (train.progress > 0.82 && otherTrain.currentStationId === targetStationId && otherTrain.dwellingTime > 0) {
+        if (train.progress > 0.85 && otherTrain.currentStationId === targetStationId && otherTrain.dwellingTime > 0 && otherTrain.dwellingTime < 5) {
           isCongested = true;
           break;
         }
       }
 
       if (isCongested) {
-        train.dwellingTime = 0.4;
+        train.dwellingTime = 0.3;
         line.stats.congestionStopsCount = (line.stats.congestionStopsCount || 0) + 1;
         continue;
       }
@@ -753,6 +780,7 @@ export class MetroEngine {
         }
 
         // Handle terminus turn-around or loop wrapping immediately upon arrival
+        // Note: Terminus buffer caps are purely decorative (Mini Metro style) - trains NEVER get stuck!
         if (line.isLoop) {
           if (train.segmentIndex >= totalSegments) {
             train.segmentIndex = 0;
@@ -760,7 +788,7 @@ export class MetroEngine {
             train.segmentIndex = totalSegments - 1;
           }
         } else {
-          // Reached end of line -> turn around
+          // Reached end of line -> turn around and head back along the line
           if (train.segmentIndex >= totalSegments) {
             train.segmentIndex = Math.max(0, totalSegments - 1);
             train.direction = -1;
@@ -1760,6 +1788,112 @@ export class MetroEngine {
       floodedStationIds: floodedIds,
       durationRemaining: duration
     };
+  }
+
+  /**
+   * Sets a station as a terminus/decorative endpoint on a line
+   * Trains cannot pass through terminus stations - they serve as visual line endpoints
+   * @param lineId - The line ID
+   * @param stationId - The station to make a terminus
+   * @returns true if terminus was set successfully
+   */
+  public setTerminusStation(lineId: string, stationId: string): boolean {
+    const line = this.state.lines.find(l => l.id === lineId);
+    const station = this.state.stations.find(s => s.id === stationId);
+    
+    if (!line || !station) return false;
+    if (!line.stationIds.includes(stationId)) return false;
+
+    if (!line.terminusStations) {
+      line.terminusStations = [];
+    }
+
+    if (!line.terminusStations.includes(stationId)) {
+      line.terminusStations.push(stationId);
+      soundEngine.playConnect();
+      this.addFloatingText(station.x, station.y - 30, '⭕ Đầu tuyến (Không đi qua)', '#06B6D4');
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Removes terminus status from a station
+   */
+  public removeTerminusStation(lineId: string, stationId: string): boolean {
+    const line = this.state.lines.find(l => l.id === lineId);
+    const station = this.state.stations.find(s => s.id === stationId);
+    
+    if (!line || !station || !line.terminusStations) return false;
+
+    const idx = line.terminusStations.indexOf(stationId);
+    if (idx > -1) {
+      line.terminusStations.splice(idx, 1);
+      soundEngine.playDisconnect();
+      this.addFloatingText(station.x, station.y - 30, '✖ Hủy đầu tuyến', line.color || '#94A3B8');
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Sticks a train at a station - it will not move until unstuck
+   * @param trainId - The train to stick
+   * @param stationId - Optional station ID where train should be stuck
+   * @returns true if train was stuck successfully
+   */
+  public stuckTrain(trainId: string, stationId?: string): boolean {
+    const train = this.state.trains.find(t => t.id === trainId);
+    if (!train) return false;
+
+    const targetStation = stationId 
+      ? this.state.stations.find(s => s.id === stationId)
+      : this.state.stations.find(s => s.id === train.currentStationId);
+
+    if (!targetStation) return false;
+
+    train.isStuck = true;
+    train.stuckTimer = 0;
+    train.dwellingTime = 999999; // Infinite dwelling
+    train.currentStationId = targetStation.id;
+    
+    soundEngine.playWarning(0.8);
+    this.addFloatingText(targetStation.x, targetStation.y - 30, '🛑 Tàu bị ỵ tại ga!', '#EF4444');
+    return true;
+  }
+
+  /**
+   * Unsticks a train so it can move again
+   * @param trainId - The train to unstick
+   * @returns true if train was unstuck successfully
+   */
+  public unstuckTrain(trainId: string): boolean {
+    const train = this.state.trains.find(t => t.id === trainId);
+    if (!train || !train.isStuck) return false;
+
+    train.isStuck = false;
+    train.stuckTimer = 0;
+    train.dwellingTime = 0;
+
+    const station = this.state.stations.find(s => s.id === train.currentStationId);
+    if (station) {
+      soundEngine.playConnect();
+      this.addFloatingText(station.x, station.y - 30, '✅ Tàu đã phục hồi!', '#10B981');
+    }
+
+    return true;
+  }
+
+  /**
+   * Checks if a train can pass through a station (considers terminus status)
+   */
+  private canTrainPassStation(train: Train, stationId: string): boolean {
+    const line = this.state.lines.find(l => l.id === train.lineId);
+    if (!line || !line.terminusStations) return true;
+
+    return !line.terminusStations.includes(stationId);
   }
 
   // Route Management

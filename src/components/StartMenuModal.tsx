@@ -65,8 +65,6 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
 
   const currentCity = cityMaps.find(c => c.id === currentCityId) || cityMaps[0];
   const cityName = lang === 'vi' ? currentCity.nameVi : currentCity.nameEn;
-
-  return (
   const isDark = theme === 'dark';
 
   return (

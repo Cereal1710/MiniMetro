@@ -219,7 +219,7 @@ export default function App() {
   const hoveredStationRef = useRef<string | null>(null);
   const mouseDownRef = useRef<{ clientX: number; clientY: number; time: number; stationId: string | null } | null>(null);
   const lastStationClickRef = useRef<{ stationId: string; time: number } | null>(null);
-  const singleClickTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const singleClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Camera Zoom & Pan tracking
   const cameraZoomRef = useRef<number>(1.0);
   const cameraPanRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -479,6 +479,7 @@ export default function App() {
     }
 
     engineRef.current = engine;
+    (window as unknown as { __engine: typeof engine }).__engine = engine;
     dragStateRef.current = {
       isDragging: false,
       fromStationId: null,
@@ -1431,15 +1432,19 @@ export default function App() {
     syncSnapshot();
   }, [selectedLineId, syncSnapshot]);
 
-  const handleRequestDeleteLine = useCallback((lineId: string, lineName: string) => {
+  const handleRequestDeleteLine = useCallback((lineId: string, lineName?: string) => {
+    const engine = engineRef.current;
+    const targetLine = engine?.state.lines.find(l => l.id === lineId);
+    const displayName = lineName || targetLine?.name || (lang === 'vi' ? 'tuyến này' : 'this route');
     setConfirmDialog({
       isOpen: true,
       title: lang === 'vi' ? 'Xác nhận xóa tuyến' : 'Delete Route',
       message: lang === 'vi'
-        ? `Bạn có chắc muốn xóa tuyến "${lineName}"? Các đoàn tàu và toa xe đang hoạt động trên tuyến sẽ được thu hồi về kho an toàn.`
-        : `Are you sure you want to delete "${lineName}"? All fleets will be safely recalled to the depot.`,
+        ? `Bạn có chắc muốn xóa "${displayName}"? Toàn bộ đoàn tàu và toa xe đang chạy trên tuyến sẽ được thu hồi an toàn về kho depot.`
+        : `Are you sure you want to delete "${displayName}"? All trains and carriages on this line will be safely returned to depot inventory.`,
       confirmLabel: lang === 'vi' ? 'Xóa tuyến' : 'Delete Route',
       cancelLabel: lang === 'vi' ? 'Hủy' : 'Cancel',
+      confirmVariant: 'danger',
       onConfirm: () => {
         handleDeleteLine(lineId);
         setConfirmDialog(null);
@@ -1677,7 +1682,7 @@ export default function App() {
             onToggleCollapse={() => setIsSidebarCollapsed(v => !v)}
             onSelectLine={(lId) => setSelectedLineId(lId)}
             onCreateNewLine={handleCreateNewLine}
-            onDeleteLine={handleDeleteLine}
+            onDeleteLine={handleRequestDeleteLine}
             onRequestDeleteLine={handleRequestDeleteLine}
             onChangeLineType={(lId, type) => {
               engine?.updateLineType(lId, type);
@@ -1768,7 +1773,7 @@ export default function App() {
               isPlacingStation={isPlacingStation}
               onSelectLine={(lId) => setSelectedLineId(lId)}
               onCreateNewLine={handleCreateNewLine}
-              onDeleteLine={handleDeleteLine}
+              onDeleteLine={handleRequestDeleteLine}
               onDeployTrain={(lId) => {
                 engine?.deployTrainToLine(lId);
                 syncSnapshot();

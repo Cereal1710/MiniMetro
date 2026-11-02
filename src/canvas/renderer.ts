@@ -811,40 +811,45 @@ export function renderScene(
       }
     }
 
-    // Terminus T-Bar Bumper Cap (Hinh 2 & Screenshot 2, 4, 5)
-    // Non-loop lines extend past both end stations and terminate with a perpendicular T-bar crossbar
-    if (!line.isLoop && geom.segments.length > 0) {
-      const stemLength = 14;
-      const barHalf = 8.5;
+    // Terminus T-Bar Bumper Cap (Mini Metro authentic terminus end cap - Image 2)
+    // Non-loop lines extend outward past terminal stations and terminate with a perpendicular T-bar crossbar
+    // Circular loop lines have NO endpoints and must NEVER have any buffer stops
+    const isClosedLoop = Boolean(
+      line.isLoop ||
+      (line.stationIds.length >= 3 && line.stationIds[0] === line.stationIds[line.stationIds.length - 1])
+    );
 
-      const drawTBar = (pStation: Point, pNextOrPrev: Point) => {
-        // Outward direction vector away from network
-        let dx = pStation.x - pNextOrPrev.x;
-        let dy = pStation.y - pNextOrPrev.y;
-        const len = Math.hypot(dx, dy);
+    if (!isClosedLoop && geom.segments.length > 0 && line.stationIds.length >= 2) {
+      const barHalf = 12; // 24px crossbar width
+      const stemExtension = 24; // extends 24px past station radius for clear visibility
+
+      const drawTBar = (pStation: Point, dirX: number, dirY: number, stationRadius = 15) => {
+        const len = Math.hypot(dirX, dirY);
         if (len < 0.001) return;
-        dx /= len;
-        dy /= len;
+        const dx = dirX / len;
+        const dy = dirY / len;
 
         const perpX = -dy;
         const perpY = dx;
 
-        const stemEnd = { x: pStation.x + dx * stemLength, y: pStation.y + dy * stemLength };
+        // Stem extends beyond station radius so the T-bar is clearly visible extending from the station
+        const totalStemLength = stationRadius + stemExtension;
+        const stemEnd = { x: pStation.x + dx * totalStemLength, y: pStation.y + dy * totalStemLength };
         const bar1 = { x: stemEnd.x - perpX * barHalf, y: stemEnd.y - perpY * barHalf };
         const bar2 = { x: stemEnd.x + perpX * barHalf, y: stemEnd.y + perpY * barHalf };
 
-        // 1. Casing
         ctx.save();
-        ctx.strokeStyle = casingColor;
         ctx.lineCap = 'square';
-        // Stem casing
+
+        // 1. Casing
+        ctx.strokeStyle = casingColor;
         ctx.lineWidth = casingLineWidth;
         ctx.beginPath();
         ctx.moveTo(pStation.x, pStation.y);
         ctx.lineTo(stemEnd.x, stemEnd.y);
         ctx.stroke();
-        // Crossbar casing
-        ctx.lineWidth = 6.8;
+
+        ctx.lineWidth = casingLineWidth + 1.6;
         ctx.beginPath();
         ctx.moveTo(bar1.x, bar1.y);
         ctx.lineTo(bar2.x, bar2.y);
@@ -852,31 +857,70 @@ export function renderScene(
 
         // 2. Main color
         ctx.strokeStyle = line.color;
-        // Stem
         ctx.lineWidth = solidLineWidth;
         ctx.beginPath();
         ctx.moveTo(pStation.x, pStation.y);
         ctx.lineTo(stemEnd.x, stemEnd.y);
         ctx.stroke();
-        // Crossbar
-        ctx.lineWidth = 4.2;
+
+        ctx.lineWidth = solidLineWidth + 0.8;
         ctx.beginPath();
         ctx.moveTo(bar1.x, bar1.y);
         ctx.lineTo(bar2.x, bar2.y);
         ctx.stroke();
+
         ctx.restore();
       };
 
-      // Start terminus (from first segment)
-      const firstPts = geom.segments[0].polyline.points;
+      // 1. Start terminus (Station 0)
+      const firstSeg = geom.segments[0];
+      const firstPts = firstSeg.polyline.points;
       if (firstPts.length >= 2) {
-        drawTBar(firstPts[0], firstPts[1]);
+        const s0 = stationMap.get(line.stationIds[0]);
+        const s0Radius = s0?.isInterchange ? 20 : 15;
+        let nextPt = firstPts[1];
+        for (let k = 1; k < firstPts.length; k++) {
+          if (distance(firstPts[0], firstPts[k]) >= 6) {
+            nextPt = firstPts[k];
+            break;
+          }
+        }
+        let dx0 = firstPts[0].x - nextPt.x;
+        let dy0 = firstPts[0].y - nextPt.y;
+        if (Math.hypot(dx0, dy0) < 0.001) {
+          const s1 = stationMap.get(line.stationIds[1]);
+          if (s0 && s1) {
+            dx0 = s0.x - s1.x;
+            dy0 = s0.y - s1.y;
+          }
+        }
+        drawTBar(firstPts[0], dx0, dy0, s0Radius);
       }
 
-      // End terminus (from last segment)
-      const lastPts = geom.segments[geom.segments.length - 1].polyline.points;
+      // 2. End terminus (Station N-1)
+      const lastSeg = geom.segments[geom.segments.length - 1];
+      const lastPts = lastSeg.polyline.points;
       if (lastPts.length >= 2) {
-        drawTBar(lastPts[lastPts.length - 1], lastPts[lastPts.length - 2]);
+        const sEnd = stationMap.get(line.stationIds[line.stationIds.length - 1]);
+        const sEndRadius = sEnd?.isInterchange ? 20 : 15;
+        const endPt = lastPts[lastPts.length - 1];
+        let prevPt = lastPts[lastPts.length - 2];
+        for (let k = lastPts.length - 2; k >= 0; k--) {
+          if (distance(endPt, lastPts[k]) >= 6) {
+            prevPt = lastPts[k];
+            break;
+          }
+        }
+        let dxEnd = endPt.x - prevPt.x;
+        let dyEnd = endPt.y - prevPt.y;
+        if (Math.hypot(dxEnd, dyEnd) < 0.001) {
+          const sPrev = stationMap.get(line.stationIds[line.stationIds.length - 2]);
+          if (sEnd && sPrev) {
+            dxEnd = sEnd.x - sPrev.x;
+            dyEnd = sEnd.y - sPrev.y;
+          }
+        }
+        drawTBar(endPt, dxEnd, dyEnd, sEndRadius);
       }
     }
   };
@@ -1052,8 +1096,9 @@ export function renderScene(
       const currFrontX = currCar.x + Math.cos(currCar.angle) * (carLength / 2);
       const currFrontY = currCar.y + Math.sin(currCar.angle) * (carLength / 2);
 
-      ctx.strokeStyle = line.color;
-      ctx.lineWidth = 3.5;
+      // Black connector link matching the train's black outline
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 3.2;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(prevRearX, prevRearY);
@@ -1061,7 +1106,37 @@ export function renderScene(
       ctx.stroke();
     }
 
-    // Authentic minimalist Mini Metro train bodies & carriages (Hinh 3 & Screenshot 3)
+    // Soft dim warm yellow headlight beam projecting in front of the lead car (direction indicator)
+    if (carTransforms.length > 0) {
+      const lead = carTransforms[0];
+      const frontX = carLength / 2;
+      const beamLength = 28;
+      const beamHalfWidth = 9.5;
+
+      ctx.save();
+      ctx.translate(lead.x, lead.y);
+      ctx.rotate(lead.angle);
+
+      // Conical headlight beam with soft, muted warm yellow gradient
+      const beamGrad = ctx.createRadialGradient(frontX, 0, 2, frontX + beamLength * 0.75, 0, beamLength);
+      beamGrad.addColorStop(0, 'rgba(217, 160, 24, 0.32)'); // Soft dim warm amber/yellow
+      beamGrad.addColorStop(0.5, 'rgba(234, 179, 8, 0.16)');
+      beamGrad.addColorStop(1, 'rgba(234, 179, 8, 0.0)');
+
+      ctx.fillStyle = beamGrad;
+      ctx.beginPath();
+      ctx.moveTo(frontX, -2.5);
+      ctx.lineTo(frontX + beamLength, -beamHalfWidth);
+      ctx.arcTo(frontX + beamLength + 4, 0, frontX + beamLength, beamHalfWidth, 6);
+      ctx.lineTo(frontX + beamLength, beamHalfWidth);
+      ctx.lineTo(frontX, 2.5);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // Authentic minimalist Mini Metro train bodies & carriages with black outline
     carTransforms.forEach((car, c) => {
       ctx.save();
       ctx.translate(car.x, car.y);
@@ -1073,12 +1148,24 @@ export function renderScene(
       ctx.roundRect(-carLength / 2, -carWidth / 2, carLength, carWidth, 3.2);
       ctx.fill();
 
-      // Subtle contrast outline
-      ctx.strokeStyle = isDark ? 'rgba(0,0,0,0.40)' : 'rgba(255,255,255,0.70)';
-      ctx.lineWidth = 1.3;
+      // Solid black outline for crisp, high-contrast Mini Metro train cars
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.8;
       ctx.stroke();
 
-      // Passengers inside the train: clean geometric shapes (white with crisp dark outline, exactly as Screenshot 3)
+      // Headlight lamp on the front nose of the lead locomotive car
+      if (c === 0) {
+        const noseX = carLength / 2 - 1.5;
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.88)'; // Warm yellow lamp lens
+        ctx.beginPath();
+        ctx.arc(noseX, 0, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+
+      // Passengers inside the train: clean geometric shapes (white with crisp dark outline)
       const passengersPerCar = 4;
       const startPassengerIdx = c * passengersPerCar;
       const endPassengerIdx = Math.min(train.passengers.length, startPassengerIdx + passengersPerCar);
@@ -1114,12 +1201,66 @@ export function renderScene(
       ctx.fillText(`🔧 HỎNG (${Math.ceil(train.breakdownTimer)}s)`, 0, 0);
       ctx.restore();
     }
+
+    // Stuck Train Indicator (train is immobilized at station)
+    if (train.isStuck && carTransforms.length > 0) {
+      const lead = carTransforms[0];
+      ctx.save();
+      ctx.translate(lead.x, lead.y - 22);
+      
+      // Pulsing red warning indicator
+      const pulse = (Math.sin(Date.now() / 200) + 1) * 0.5;
+      ctx.fillStyle = `rgba(239, 68, 68, ${0.7 + pulse * 0.3})`;
+      ctx.beginPath();
+      ctx.roundRect(-36, -9, 72, 18, 4);
+      ctx.fill();
+      
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 8.5px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🛑 BỊ ỴTại GA', 0, 0);
+      ctx.restore();
+    }
   };
 
   const drawSingleStation = (station: Station) => {
     const isHovered = options.hoveredStationId === station.id;
     const isSelected = options.selectedStationId === station.id;
     const baseRadius = station.isInterchange ? 20 : 15;
+
+    // Detect if this station is a terminus of any non-loop line, and check T-bar outward direction
+    let terminusDirX = 0;
+    let terminusDirY = 0;
+    for (const l of lines) {
+      if (l.isLoop || l.stationIds.length < 2) continue;
+      if (l.stationIds[0] === l.stationIds[l.stationIds.length - 1]) continue;
+      const geom = lineGeometries.get(l.id);
+      if (!geom || geom.segments.length === 0) continue;
+
+      if (l.stationIds[0] === station.id && geom.segments[0].polyline.points.length >= 2) {
+        const pts = geom.segments[0].polyline.points;
+        const next = pts[Math.min(1, pts.length - 1)];
+        const dx = pts[0].x - next.x;
+        const dy = pts[0].y - next.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 0.001) { terminusDirX = dx / len; terminusDirY = dy / len; }
+      } else if (l.stationIds[l.stationIds.length - 1] === station.id) {
+        const lastPts = geom.segments[geom.segments.length - 1].polyline.points;
+        if (lastPts.length >= 2) {
+          const endPt = lastPts[lastPts.length - 1];
+          const prev = lastPts[Math.max(0, lastPts.length - 2)];
+          const dx = endPt.x - prev.x;
+          const dy = endPt.y - prev.y;
+          const len = Math.hypot(dx, dy);
+          if (len > 0.001) { terminusDirX = dx / len; terminusDirY = dy / len; }
+        }
+      }
+    }
 
     ctx.save();
 
@@ -1323,6 +1464,7 @@ export function renderScene(
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
 
+
     // Station Name Tag
     if (options.showStationNames) {
       ctx.font = '700 11.5px "Plus Jakarta Sans", sans-serif';
@@ -1335,7 +1477,7 @@ export function renderScene(
         textW = ctx.measureText(name).width + 12;
         textWidthCache.set(name, textW);
       }
-      const tagY = station.y + baseRadius + 7;
+      const tagY = station.y + baseRadius + (terminusDirY > 0.25 ? 32 : 7);
 
       ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.94)';
       ctx.beginPath();
@@ -1365,7 +1507,7 @@ export function renderScene(
       ctx.textBaseline = 'middle';
 
       let curY = station.y - baseRadius;
-      const startX = station.x + baseRadius + 7;
+      const startX = station.x + baseRadius + (terminusDirX > 0.25 ? 30 : 7);
 
       shapeCounts.forEach((count, shape) => {
         const countStr = `${count}`;
@@ -1469,7 +1611,7 @@ export function renderScene(
     const depotLines = lines.filter(l => (l.depotStationId && l.depotStationId === station.id) || (!l.depotStationId && l.stationIds[0] === station.id && l.stationIds.length >= 2));
     if (depotLines.length > 0) {
       ctx.save();
-      const badgeY = station.y - baseRadius - (station.isFlooded ? 40 : 20);
+      const badgeY = station.y - baseRadius - (station.isFlooded ? 40 : (terminusDirY < -0.25 ? 36 : 20));
       const label = '🏢 DEPOT';
       ctx.font = 'bold 8.5px sans-serif';
       const textW = ctx.measureText(label).width;

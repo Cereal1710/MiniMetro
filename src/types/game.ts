@@ -113,6 +113,7 @@ export interface MetroLine {
   dispatchIntervalSeconds?: number;
   dispatchTimer?: number;
   stats?: LinePerformanceStats;
+  terminusStations?: string[]; // stations where trains cannot pass (decorative endpoints)
 }
 
 export interface Train {
@@ -133,6 +134,8 @@ export interface Train {
   turboTimer?: number;
   turboCooldown?: number;
   isBulletTrain?: boolean;
+  isStuck?: boolean; // train is stuck and won't move
+  stuckTimer?: number; // how long train has been stuck
 }
 
 export interface FloatingText {
