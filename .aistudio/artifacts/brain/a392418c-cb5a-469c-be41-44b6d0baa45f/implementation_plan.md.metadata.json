@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan to overhaul the game interface to 100% authentic Mini Metro GUI: authentic Start Menu inspired by Dinosaur Polo Club, minimalist top-right HUD with clock ticker & passenger counter, bottom inventory dock for routes and rolling stock, and clean high-contrast Game Over screen with UI auto-suppression and station overflow highlight.",
+  "updatedAt":  "2026-11-01T10:10:47.453611058Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

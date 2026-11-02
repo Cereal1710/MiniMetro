@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information and cloud sync metadata",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique Firebase Auth UID"
+        },
+        "username": {
+          "type": "string",
+          "description": "The display username of the player",
+          "minLength": 2,
+          "maxLength": 50
+        },
+        "email": {
+          "type": "string",
+          "description": "Optional email address"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account creation timestamp"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last login timestamp"
+        }
+      },
+      "required": ["uid", "username"]
+    },
+    "CitySave": {
+      "title": "CitySave",
+      "description": "Simulation game save for a specific city",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "cityId": {
+          "type": "string",
+          "description": "City identifier (e.g., hanoi, saigon, danang)"
+        },
+        "saveJson": {
+          "type": "string",
+          "description": "Serialized simulation game state JSON"
+        },
+        "version": {
+          "type": "number",
+          "description": "Save format version"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last synchronized timestamp"
+        },
+        "totalPassengers": {
+          "type": "number",
+          "description": "Total passengers delivered in this save"
+        },
+        "totalDays": {
+          "type": "number",
+          "description": "Total in-game days elapsed"
+        }
+      },
+      "required": ["userId", "cityId", "saveJson"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document storing basic account information"
+    },
+    "/users/{userId}/city_saves/{cityId}": {
+      "schema": "CitySave",
+      "description": "Per-city game simulation save for the user"
+    }
+  }
+}

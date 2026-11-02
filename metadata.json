@@ -1,0 +1,6 @@
+{
+  "name": "Mini Metro Manager — Quản lý Giao thông Thành phố",
+  "description": "Trò chơi mô phỏng quản lý giao thông tàu điện ngầm tối giản. Xây dựng tuyến đường, điều phối đoàn tàu, vận chuyển hành khách và mở rộng thành phố.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

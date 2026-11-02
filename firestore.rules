@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global catch-all default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // UserProfile validation
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'username']) &&
+        data.keys().hasOnly(['uid', 'username', 'email', 'createdAt', 'lastLoginAt']) &&
+        data.uid is string && data.uid == userId &&
+        data.username is string && data.username.size() >= 2 && data.username.size() <= 50 &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+        (!('createdAt' in data) || data.createdAt is timestamp || data.createdAt is string) &&
+        (!('lastLoginAt' in data) || data.lastLoginAt is timestamp || data.lastLoginAt is string);
+    }
+
+    // CitySave validation
+    function isValidCitySave(data, userId, cityId) {
+      return data.keys().hasAll(['userId', 'cityId', 'saveJson']) &&
+        data.keys().hasOnly(['userId', 'cityId', 'saveJson', 'version', 'updatedAt', 'totalPassengers', 'totalDays']) &&
+        data.userId is string && data.userId == userId &&
+        data.cityId is string && data.cityId == cityId &&
+        data.saveJson is string && data.saveJson.size() > 0 && data.saveJson.size() <= 800000 &&
+        (!('version' in data) || (data.version is number && data.version >= 1)) &&
+        (!('totalPassengers' in data) || (data.totalPassengers is number && data.totalPassengers >= 0)) &&
+        (!('totalDays' in data) || (data.totalDays is number && data.totalDays >= 0)) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp || data.updatedAt is string);
+    }
+
+    // Match /users/{userId}
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId) &&
+        incoming().uid == existing().uid;
+      allow delete: if false;
+
+      // Subcollection /users/{userId}/city_saves/{cityId}
+      match /city_saves/{cityId} {
+        allow get, list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(cityId) &&
+          isValidCitySave(incoming(), userId, cityId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(cityId) &&
+          isValidCitySave(incoming(), userId, cityId) &&
+          incoming().userId == existing().userId &&
+          incoming().cityId == existing().cityId;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(cityId);
+      }
+    }
+  }
+}
