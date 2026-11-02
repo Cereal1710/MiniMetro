@@ -61,6 +61,8 @@ export const DAY_NAMES_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 export function getLineSpeedMultiplier(type?: MetroLineType): number {
   switch (type) {
+    case 'feeder_bus':
+      return 0.90; // Agile city BRT bus
     case 'intercity':
       return 1.20; // +20% faster than metro
     case 'high_speed':
@@ -81,6 +83,9 @@ export class MetroEngine {
   private nextStationSpawnTime: number = 25; // seconds
   private lastWarningSoundTime: number = 0;
   private passengerIdCounter: number = 1;
+  private returnCommuterQueue: { originStationId: string; targetShape: StationShape; readyHour: number }[] = [];
+  public maintenanceProtectedToday: boolean = false;
+  private nightMaintenanceAnnouncedToday: boolean = false;
 
   public toggleUnlimitedMode() {
     this.isUnlimitedMode = !this.isUnlimitedMode;
@@ -128,7 +133,9 @@ export class MetroEngine {
         unassignedTrains: 2,
         carriages: 1,
         interchangeTokens: 1,
-        tunnelTokens: 2
+        tunnelTokens: 2,
+        doubleDeckerTrains: 0,
+        feederBuses: 1
       },
       stats: {
         totalPassengersDelivered: 0,
@@ -140,7 +147,12 @@ export class MetroEngine {
         crowdedWarningsAvoided: 0,
         todayPassengers: 0,
         citizenSatisfaction: 95,
-        dailyHistory: []
+        dailyHistory: [],
+        monthlyPassHoldersCount: 20,
+        weeklyPassRevenueTotal: 0,
+        distanceFareRevenueTotal: 0,
+        luggageFareRevenueTotal: 0,
+        nightMaintenanceCount: 0
       },
       money: 200000,
       timeOfDayHours: 7.0, // starts at 07:00 AM
@@ -329,6 +341,17 @@ export class MetroEngine {
     const isEveningRush = h >= 17.0 && h <= 19.5;
     this.state.isRushHour = isMorningRush || isEveningRush;
 
+    // Feature 10: Night Maintenance Railcar Sweep (05:00 Morning Inspection Complete)
+    if (h >= 5.0 && h < 5.4 && !this.nightMaintenanceAnnouncedToday) {
+      this.nightMaintenanceAnnouncedToday = true;
+      this.maintenanceProtectedToday = true;
+      this.state.stats.nightMaintenanceCount = (this.state.stats.nightMaintenanceCount || 0) + 1;
+      this.addFloatingText(740, 440, '🔧 Bảo trì đường ray đêm hoàn tất: -90% nguy cơ hỏng tàu hôm nay!', '#10B981');
+      soundEngine.playConnect();
+    } else if (h >= 12.0) {
+      this.nightMaintenanceAnnouncedToday = false;
+    }
+
     if (this.state.timeOfDayHours >= 24) {
       this.state.timeOfDayHours -= 24;
       const finishedDayIndex = this.state.currentDayIndex;
@@ -377,11 +400,20 @@ export class MetroEngine {
       const dailyCost = this.state.trains.length * 20 + this.state.lines.length * 10;
       this.state.money = Math.max(0, this.state.money - dailyCost);
 
-      // Sunday midnight: trigger Weekly Upgrade Grant & Loans/Satisfaction bonus!
+      // Sunday midnight: trigger Weekly Upgrade Grant & Loans/Satisfaction bonus & Weekly Pass Payout!
       if (this.state.currentDayIndex === 0) {
         this.state.weekNumber++;
         this.state.stats.totalWeeks++;
         this.state.pendingWeeklyReward = true;
+
+        // Feature 12: Weekly Pass Revenue ($1,400/tuần/người - 80% cư dân)
+        const baseCommuters = Math.max(10, Math.round(this.state.stations.length * 6 + (this.state.stats.totalPassengersDelivered * 0.12)));
+        const monthlyPassHolders = Math.round(baseCommuters * 0.80);
+        const weeklyPassRevenue = monthlyPassHolders * 1400; // $1,400/tuần/người!
+        this.state.money += weeklyPassRevenue;
+        this.state.stats.weeklyPassRevenueTotal = (this.state.stats.weeklyPassRevenueTotal || 0) + weeklyPassRevenue;
+        this.state.stats.monthlyPassHoldersCount = monthlyPassHolders;
+        this.addFloatingText(740, 360, `🎫 +$${weeklyPassRevenue.toLocaleString()} (${monthlyPassHolders} cư dân dùng Vé Tháng - $1,400/người)!`, '#06B6D4');
 
         // Deduct weekly interest for active bank loans
         if (this.state.activeLoans && this.state.activeLoans.length > 0) {
@@ -506,13 +538,18 @@ export class MetroEngine {
           // Choose a target shape distinct from current station shape
           const candidateShapes = existingShapes.filter(sh => sh !== station.shape);
           if (candidateShapes.length > 0) {
+            // Feature 16: Commuter Roundtrips weight modulation based on time of day
+            const h = this.state.timeOfDayHours % 24;
+            const isMorning = h >= 6.0 && h <= 11.5;
+            const isAfternoon = h >= 16.0 && h <= 20.0;
+
             // Circle/Triangle/Square have higher weight; Star/Diamond/Pentagon are rarer
             const weights: Record<StationShape, number> = {
-              circle: 3,
+              circle: isAfternoon ? 8 : 3,
               triangle: 3,
-              square: 2,
-              diamond: 1,
-              star: 1,
+              square: isMorning ? 7 : 2,
+              diamond: isMorning ? 2 : 1,
+              star: isMorning ? 3 : 1,
               cross: 1,
               pentagon: 1
             };
@@ -524,14 +561,48 @@ export class MetroEngine {
             });
 
             const targetShape = shapePool[Math.floor(Math.random() * shapePool.length)];
+
+            // Feature 19: Khách mang vali (Airport Luggage Passengers)
+            const isAirportRelated = station.specialHubType === 'airport' || targetShape === 'star';
+            const hasLuggage = isAirportRelated ? Math.random() < 0.45 : Math.random() < 0.12;
+
+            // Feature 12: 80% cư dân dùng vé tháng ($1400/tuần/người), 20% vé lẻ ($2/ga)
+            const isMonthlyPassHolder = Math.random() < 0.80;
+
             const passenger: Passenger = {
               id: `p-${this.passengerIdCounter++}`,
               targetShape,
               spawnTime: Date.now(),
-              stationId: station.id
+              stationId: station.id,
+              hasLuggage,
+              isMonthlyPassHolder,
+              stationsTraveled: 0,
+              commuterHomeStationId: station.shape === 'circle' ? station.id : undefined,
+              isReturnTrip: isAfternoon && targetShape === 'circle'
             };
             station.passengers.push(passenger);
           }
+        }
+      }
+    }
+
+    // Feature 16: Spawn queued return commuters during afternoon rush (16h - 20h)
+    if (!this.returnCommuterQueue) this.returnCommuterQueue = [];
+    const currH = this.state.timeOfDayHours % 24;
+    if (currH >= 16.0 && this.returnCommuterQueue.length > 0 && Math.random() < 0.45 * simDt) {
+      const returnCommuter = this.returnCommuterQueue.shift();
+      if (returnCommuter) {
+        const originSt = this.state.stations.find(s => s.id === returnCommuter.originStationId);
+        if (originSt && originSt.passengers.length < originSt.maxCapacity + 4) {
+          originSt.passengers.push({
+            id: `p-return-${this.passengerIdCounter++}`,
+            targetShape: returnCommuter.targetShape,
+            spawnTime: Date.now(),
+            stationId: originSt.id,
+            isReturnTrip: true,
+            isMonthlyPassHolder: Math.random() < 0.85,
+            stationsTraveled: 0
+          });
         }
       }
     }
@@ -659,6 +730,10 @@ export class MetroEngine {
       if (typeof train.dwellingTime !== 'number' || isNaN(train.dwellingTime) || train.dwellingTime < 0) {
         train.dwellingTime = 0;
       }
+      // Auto-recover any train that is not docked at depot but has abnormally high dwelling time
+      if (!train.isDockedAtDepot && train.dwellingTime > 2.0) {
+        train.dwellingTime = 0.5;
+      }
       if (typeof train.segmentIndex !== 'number' || isNaN(train.segmentIndex)) {
         train.segmentIndex = 0;
       }
@@ -694,69 +769,50 @@ export class MetroEngine {
         };
       }
 
-      // Check for headway safety distance / station occupancy congestion ahead on same line
-      let isCongested = false;
+      // Check headway safety distance on same segment: gentle slow down (never freeze trains!)
+      let headwayMultiplier = 1.0;
       for (const otherTrain of this.state.trains) {
         if (otherTrain.id === train.id || otherTrain.lineId !== line.id) continue;
         if (otherTrain.isDockedAtDepot) continue;
 
-        // Same segment and same direction ahead:
         if (otherTrain.segmentIndex === train.segmentIndex && otherTrain.direction === train.direction) {
-          // Both trains are advancing progress 0 -> 1 along the segment.
-          // The other train is ahead if otherTrain.progress > train.progress.
           const diff = otherTrain.progress - train.progress;
-          if (diff > 0.03 && diff < 0.25) {
-            isCongested = true;
+          if (diff > 0.02 && diff < 0.20) {
+            headwayMultiplier = 0.65;
             break;
           }
         }
-        // Approaching station that is currently occupied by a dwelling train
-        const targetStationId = train.direction === 1 ? vId : uId;
-        if (train.progress > 0.85 && otherTrain.currentStationId === targetStationId && otherTrain.dwellingTime > 0 && otherTrain.dwellingTime < 5) {
-          isCongested = true;
-          break;
-        }
-      }
-
-      if (isCongested) {
-        train.dwellingTime = 0.3;
-        line.stats.congestionStopsCount = (line.stats.congestionStopsCount || 0) + 1;
-        continue;
       }
 
       const segDistance = Math.max(40, distance(s1, s2));
-      // Base train speed reduced to 3/5 of previous speed; adjusted by line type multiplier (metro = 1.0x, intercity = 1.2x, high_speed = 1.8x)
-      const baseSpeed = typeof train.speed === 'number' && train.speed > 5 ? train.speed : 75;
+      const baseSpeed = typeof train.speed === 'number' && train.speed > 5 ? Math.max(55, train.speed) : 75;
       const typeMultiplier = getLineSpeedMultiplier(line.type);
       let weatherSpeedMultiplier = 1.0;
       if (s1.isFlooded || s2.isFlooded) {
-        weatherSpeedMultiplier = 0.55; // Flooded track cautious crawl
+        weatherSpeedMultiplier = 0.75; // Flooded track cautious crawl (safe and responsive)
       } else if (this.state.weather.type === 'storm') {
-        weatherSpeedMultiplier = 0.80; // Storm caution
+        weatherSpeedMultiplier = 0.85; // Storm caution
       }
 
       // Tăng 50% (1.5x) tốc độ cho đoàn tàu đã trả khách xong trên đường quay về depot
       const depotRecallSpeedMultiplier = (line.isDepotRecalled && train.passengers.length === 0) ? 1.5 : 1.0;
 
-      // Realistic physical acceleration upon departure and deceleration upon arrival (Hinh 5)
-      // Departing station (progress 0 -> 0.22): accelerate smoothly from 0.25x crawl to 1.0x cruise
-      // Cruising segment (progress 0.22 -> 0.78): full speed (1.0x)
-      // Approaching station (progress 0.78 -> 1.0): decelerate smoothly from 1.0x cruise down to 0.25x gentle stop
+      // Realistic physical acceleration upon departure and deceleration upon arrival
       const p = Math.max(0, Math.min(1, train.progress));
       let accelDecelMultiplier = 1.0;
-      const rampZone = 0.22;
+      const rampZone = 0.18;
       if (p < rampZone) {
-        // Accelerating out of station
         const t = p / rampZone;
-        accelDecelMultiplier = 0.25 + 0.75 * Math.sin(t * (Math.PI / 2));
+        accelDecelMultiplier = 0.40 + 0.60 * Math.sin(t * (Math.PI / 2));
       } else if (p > 1.0 - rampZone) {
-        // Decelerating into station
         const t = (1.0 - p) / rampZone;
-        accelDecelMultiplier = 0.25 + 0.75 * Math.sin(t * (Math.PI / 2));
+        accelDecelMultiplier = 0.40 + 0.60 * Math.sin(t * (Math.PI / 2));
       }
 
-      const speed = baseSpeed * 0.65 * typeMultiplier * weatherSpeedMultiplier * depotRecallSpeedMultiplier * accelDecelMultiplier;
-      const stepProgress = (speed * simDt) / segDistance;
+      // Calculate speed with guaranteed minimum velocity so trains NEVER crawl to a halt outside stations
+      let finalSpeed = baseSpeed * 0.90 * typeMultiplier * weatherSpeedMultiplier * depotRecallSpeedMultiplier * accelDecelMultiplier * headwayMultiplier;
+      finalSpeed = Math.max(40, finalSpeed); // Minimum 40 px/s ensures brisk, continuous movement
+      const stepProgress = (finalSpeed * simDt) / segDistance;
 
       train.progress += stepProgress;
 
@@ -806,8 +862,13 @@ export class MetroEngine {
   }
 
   private handleTrainArrivalAtStation(train: Train, station: Station, line: MetroLine) {
-    // Train pauses at station (clears in 0.3s if running empty back to depot)
-    train.dwellingTime = (line.isDepotRecalled && train.passengers.length === 0) ? 0.3 : 0.8;
+    // Train pauses at station (longer dwelling if double decker loading large crowds)
+    const isDouble = !!train.isDoubleDecker;
+    train.dwellingTime = (line.isDepotRecalled && train.passengers.length === 0)
+      ? 0.3
+      : (isDouble && train.passengers.length > 8)
+      ? 1.15
+      : 0.8;
     train.currentStationId = station.id;
 
     // Check if line is recalled to Depot and this station is the designated depot
@@ -830,6 +891,7 @@ export class MetroEngine {
 
     let fareEarned = 0;
     let passengersDeliveredHere = 0;
+    let monthlyPassDelivered = 0;
 
     // Fast transit route cache for this station arrival (avoids duplicate BFS for same destination shape)
     const transitStepCache = new Map<StationShape, ReturnType<typeof findNextTransitStep>>();
@@ -846,25 +908,59 @@ export class MetroEngine {
     // 1. Check Alighting passengers
     const remainingInTrain: Passenger[] = [];
     for (const p of train.passengers) {
+      p.stationsTraveled = (p.stationsTraveled || 0) + 1;
+
       if (p.targetShape === station.shape) {
         // Successful destination reached!
         passengersDeliveredHere++;
-        const baseFare = this.state.isRushHour ? 25 : 18;
-        // Standard mode earns 2x ticket revenue bonus
-        const modeMultiplier = this.state.gameMode === 'standard' ? 2 : 1;
-        let fare = baseFare * modeMultiplier;
+        let fare = 0;
 
-        // Special Hub: Airport / Seaport gets 2.5x fare!
-        if (station.specialHubType === 'airport' || station.specialHubType === 'seaport') {
-          fare = Math.round(fare * 2.5);
+        if (p.isMonthlyPassHolder) {
+          // Feature 12: 80% cư dân dùng vé tháng ($1400/tuần đã tính vào ngân sách) -> Vé lượt = $0!
+          fare = 0;
+          monthlyPassDelivered++;
+        } else {
+          // Feature 12: 1 ga = $2!
+          const stationsCount = Math.max(1, p.stationsTraveled || 1);
+          fare = stationsCount * 2; // 1 ga = $2!
+
+          // Feature 19: Khách mang vali trả x3 vé!
+          if (p.hasLuggage) {
+            fare *= 3;
+            this.state.stats.luggageFareRevenueTotal = (this.state.stats.luggageFareRevenueTotal || 0) + fare;
+          }
+
+          if (this.state.isRushHour) {
+            fare = Math.round(fare * 1.5);
+          }
+
+          if (station.specialHubType === 'airport' || station.specialHubType === 'seaport') {
+            fare = Math.round(fare * 1.5);
+          }
+
+          if (this.state.activeSurgeEvent && this.state.activeSurgeEvent.stationId === station.id) {
+            fare = Math.round(fare * this.state.activeSurgeEvent.fareMultiplier);
+          }
+
+          const modeMultiplier = this.state.gameMode === 'standard' ? 1.5 : 1;
+          fare = Math.round(fare * modeMultiplier);
+
+          fareEarned += fare;
+          this.state.stats.distanceFareRevenueTotal = (this.state.stats.distanceFareRevenueTotal || 0) + fare;
         }
 
-        // Active Urban Surge Event: 3x fare at this station!
-        if (this.state.activeSurgeEvent && this.state.activeSurgeEvent.stationId === station.id) {
-          fare = Math.round(fare * this.state.activeSurgeEvent.fareMultiplier);
+        // Feature 16: Hành khách đi khứ hồi (Commuter Roundtrips)
+        // Nếu buổi sáng đi từ ga Circle đến ga Square/Star -> xếp vào hàng đợi về nhà buổi chiều!
+        const h = this.state.timeOfDayHours % 24;
+        if (h < 12.0 && station.shape !== 'circle' && Math.random() < 0.65) {
+          if (!this.returnCommuterQueue) this.returnCommuterQueue = [];
+          this.returnCommuterQueue.push({
+            originStationId: station.id,
+            targetShape: 'circle',
+            readyHour: 16.5
+          });
         }
 
-        fareEarned += fare;
         this.state.stats.totalPassengersDelivered++;
         this.state.stats.todayPassengers = (this.state.stats.todayPassengers || 0) + 1;
         this.state.stats.moneyEarned += fare;
@@ -912,8 +1008,11 @@ export class MetroEngine {
     if (passengersDeliveredHere > 0) {
       this.state.money += fareEarned;
       soundEngine.playArrive(passengersDeliveredHere);
-      const is2x = this.state.gameMode === 'standard';
-      this.addFloatingText(station.x, station.y - 20, is2x ? `+$${fareEarned} (2x)` : `+$${fareEarned}`, '#10B981');
+      if (fareEarned > 0) {
+        this.addFloatingText(station.x, station.y - 20, `+$${fareEarned} (Vé lẻ: $2/ga)`, '#10B981');
+      } else if (monthlyPassDelivered > 0) {
+        this.addFloatingText(station.x, station.y - 20, `🎫 Vé Tháng (${monthlyPassDelivered} khách)`, '#06B6D4');
+      }
     }
 
     // If line is recalled to Depot:
@@ -959,18 +1058,21 @@ export class MetroEngine {
       return;
     }
 
-    // 2. Boarding passengers at station
-    const availableSlots = train.capacity - train.passengers.length;
+    // 2. Boarding passengers at station (Luggage takes 2 slots)
+    const currentSlotsUsed = train.passengers.reduce((sum, p) => sum + (p.hasLuggage ? 2 : 1), 0);
+    let availableSlots = train.capacity - currentSlotsUsed;
     if (availableSlots > 0 && station.passengers.length > 0) {
       const remainingAtStation: Passenger[] = [];
       let boardedCount = 0;
 
       for (const p of station.passengers) {
-        if (boardedCount < availableSlots) {
+        const slotsNeeded = p.hasLuggage ? 2 : 1;
+        if (slotsNeeded <= availableSlots) {
           // Does this train/line lead closer to p.targetShape?
           const nextStep = getNextStep(p.targetShape);
           if (nextStep && nextStep.lineId === line.id) {
             train.passengers.push(p);
+            availableSlots -= slotsNeeded;
             boardedCount++;
             if (!line.stats) {
               line.stats = {
@@ -1667,6 +1769,11 @@ export class MetroEngine {
       this.addFloatingText(targetStation.x, targetStation.y - 30, '🎸 Đại Nhạc Hội: Đông nghẹt khách!', '#F59E0B');
     } else if (chosenType === 'train_breakdown' && this.state.trains.length > 0) {
       if (this.state.disableIncidents) return;
+      // Feature 10: Night maintenance prevents 90% of breakdowns
+      if (this.maintenanceProtectedToday && Math.random() < 0.90) {
+        this.addFloatingText(740, 500, '🛡️ Bảo trì đêm đã ngăn chặn 1 sự cố hỏng tàu!', '#10B981');
+        return;
+      }
       const runningTrains = this.state.trains.filter(t => !t.isDockedAtDepot);
       if (runningTrains.length > 0) {
         const brokenTrain = runningTrains[Math.floor(Math.random() * runningTrains.length)];
@@ -2199,18 +2306,9 @@ export class MetroEngine {
       isPointInWater({ x: (fromStation.x + toStation.x) / 2, y: (fromStation.y + toStation.y) / 2 }, rivers)
     );
 
-    if (crossesWater && !this.isUnlimitedMode) {
-      if (this.state.inventory.tunnelTokens <= 0) {
-        soundEngine.playDisconnect();
-        this.addFloatingText(fromStation.x, fromStation.y - 30, '❌ Không đủ Hầm/Cầu vượt sông! Mua trong Shop', '#EF4444');
-        return null;
-      }
-    }
-
     let targetLine: MetroLine | undefined;
 
     // 1. If preferredLineId is specified and not a closed loop, prioritize user's selected line!
-    // Never hijack with another line when the user has already chosen a line!
     if (preferredLineId) {
       const pref = this.state.lines.find(l => l.id === preferredLineId);
       if (pref && !pref.isLoop) {
@@ -2250,13 +2348,27 @@ export class MetroEngine {
 
     if (!targetLine) return null;
 
+    // Feature 8: Xe buýt trung chuyển BRT đi qua cầu đường bộ vượt sông MIỄN PHÍ, không cần Hầm Vượt Sông!
+    const isFeederBus = targetLine.type === 'feeder_bus';
+    if (crossesWater && !this.isUnlimitedMode && !isFeederBus) {
+      if (this.state.inventory.tunnelTokens <= 0) {
+        soundEngine.playDisconnect();
+        this.addFloatingText(fromStation.x, fromStation.y - 30, '❌ Không đủ Hầm/Cầu vượt sông! Mua trong Shop', '#EF4444');
+        return null;
+      }
+    }
+
     const sIds = targetLine.stationIds;
 
     const onConnected = (line: MetroLine): MetroLine => {
       soundEngine.playConnect();
       if (crossesWater && !this.isUnlimitedMode) {
-        this.state.inventory.tunnelTokens = Math.max(0, this.state.inventory.tunnelTokens - 1);
-        this.addFloatingText((fromStation.x + toStation.x) / 2, (fromStation.y + toStation.y) / 2 - 20, '🌊 -1 Hầm Vượt Sông', '#06B6D4');
+        if (line.type === 'feeder_bus') {
+          this.addFloatingText((fromStation.x + toStation.x) / 2, (fromStation.y + toStation.y) / 2 - 20, '🚌 Buýt BRT qua cầu (Miễn phí)', '#10B981');
+        } else {
+          this.state.inventory.tunnelTokens = Math.max(0, this.state.inventory.tunnelTokens - 1);
+          this.addFloatingText((fromStation.x + toStation.x) / 2, (fromStation.y + toStation.y) / 2 - 20, '🌊 -1 Hầm Vượt Sông', '#06B6D4');
+        }
       }
       return line;
     };
@@ -2654,6 +2766,50 @@ export class MetroEngine {
     this.state.inventory.tunnelTokens++;
     soundEngine.playCashReward();
     this.addFloatingText(740, 500, `-$${cost} (+1 Hầm Vượt Sông)`, '#06B6D4');
+    return true;
+  }
+
+  // Feature 7: Mua hoặc nâng cấp Tàu Hai Tầng (Double-Decker Train)
+  public buyDoubleDeckerTrain(cost = 800): boolean {
+    if (this.state.money < cost) {
+      soundEngine.playDisconnect();
+      return false;
+    }
+    this.state.money -= cost;
+    this.state.inventory.doubleDeckerTrains = (this.state.inventory.doubleDeckerTrains || 0) + 1;
+    soundEngine.playFanfare();
+    this.addFloatingText(740, 500, `-$${cost} (+1 Tàu Hai Tầng)`, '#3B82F6');
+    return true;
+  }
+
+  public upgradeTrainToDoubleDecker(trainId: string): boolean {
+    const train = this.state.trains.find(t => t.id === trainId);
+    if (!train || train.isDoubleDecker) return false;
+    if ((this.state.inventory.doubleDeckerTrains || 0) <= 0) {
+      const cost = 800;
+      if (this.state.money < cost) return false;
+      this.state.money -= cost;
+    } else {
+      this.state.inventory.doubleDeckerTrains = Math.max(0, (this.state.inventory.doubleDeckerTrains || 0) - 1);
+    }
+    train.isDoubleDecker = true;
+    train.capacity = (6 + train.carriagesCount * 4) * 2; // double capacity!
+    soundEngine.playCashReward();
+    this.addFloatingText(740, 500, `🚀 Nâng cấp Tàu 2 Tầng (Sức chứa: ${train.capacity})!`, '#3B82F6');
+    return true;
+  }
+
+  // Feature 8: Tuyến Buýt Nhanh Trung Chuyển (Feeder BRT Bus)
+  public buyFeederBus(cost = 350): boolean {
+    if (this.state.money < cost) {
+      soundEngine.playDisconnect();
+      return false;
+    }
+    this.state.money -= cost;
+    this.state.inventory.feederBuses = (this.state.inventory.feederBuses || 0) + 1;
+    this.state.inventory.availableLines++;
+    soundEngine.playFanfare();
+    this.addFloatingText(740, 500, `-$${cost} (+1 Tuyến Buýt BRT Qua Cầu Miễn Phí)`, '#10B981');
     return true;
   }
 

@@ -199,6 +199,39 @@ export const PassengerAnalyticsCard: React.FC<PassengerAnalyticsCardProps> = ({
             </div>
           </div>
 
+          {/* Feature 12 & 10: Financial & Operations Economy Breakdown */}
+          <div className={`p-2 rounded-xl border text-[10px] space-y-1.5 ${
+            isDark ? 'bg-slate-800/40 border-slate-700/60' : 'bg-neutral-50 border-neutral-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 font-semibold text-cyan-400">
+                <span>🎫</span>
+                <span>{lang === 'vi' ? 'Vé tháng (80% cư dân):' : 'Monthly passes (80%):'}</span>
+              </span>
+              <span className="font-mono font-bold text-cyan-400">
+                $1,400/{lang === 'vi' ? 'tuần/người' : 'wk/rider'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-slate-300">
+              <span className="flex items-center gap-1 opacity-80">
+                <span>🎟️</span>
+                <span>{lang === 'vi' ? 'Vé lẻ (20% vãng lai):' : 'Single ticket (20%):'}</span>
+              </span>
+              <span className="font-mono font-semibold text-emerald-400">
+                $2/{lang === 'vi' ? 'ga (🧳 x3 vé)' : 'station (🧳 x3)'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-slate-400 border-t border-slate-700/30 pt-1 text-[9px]">
+              <span className="flex items-center gap-1">
+                <span>🛡️</span>
+                <span>{lang === 'vi' ? 'Bảo trì ray đêm (22h–5h):' : 'Night rail inspection:'}</span>
+              </span>
+              <span className="font-mono font-medium text-emerald-400">
+                {lang === 'vi' ? '-90% nguy cơ hỏng tàu' : '-90% breakdowns'}
+              </span>
+            </div>
+          </div>
+
           {/* Chart View Toggle Bar */}
           <div className="flex items-center justify-between text-[10px] pt-0.5">
             <span className="opacity-60 text-[10px]">

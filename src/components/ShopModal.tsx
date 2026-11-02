@@ -16,6 +16,8 @@ interface ShopModalProps {
   onBuyLine: () => void;
   onBuyInterchange: () => void;
   onBuyTunnel?: () => void;
+  onBuyDoubleDecker?: () => void;
+  onBuyFeederBus?: () => void;
 }
 
 export const ShopModal: React.FC<ShopModalProps> = ({
@@ -30,7 +32,9 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   onBuyCarriage,
   onBuyLine,
   onBuyInterchange,
-  onBuyTunnel
+  onBuyTunnel,
+  onBuyDoubleDecker,
+  onBuyFeederBus
 }) => {
   const isDark = theme === 'dark';
 
@@ -39,6 +43,8 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   const lineCost = 3000;
   const interchangeCost = 350;
   const tunnelCost = 300;
+  const doubleDeckerCost = 800;
+  const feederBusCost = 350;
 
   const items = [
     {
@@ -76,12 +82,45 @@ export const ShopModal: React.FC<ShopModalProps> = ({
       countLabelEn: 'Depot'
     },
     {
+      titleVi: 'Tàu Hai Tầng (2x Sức chứa)',
+      titleEn: 'Double-Decker Metro Train',
+      descVi: 'Tàu 2 tầng chở gấp đôi hành khách (12 chỗ cơ bản, 8 chỗ mỗi toa), giải tỏa quá tải.',
+      descEn: 'Double-capacity train (12 base slots, 8 per carriage) to clear crowded lines.',
+      cost: doubleDeckerCost,
+      icon: (
+        <div className="w-5 h-5 flex flex-col justify-between py-0.5 text-blue-400">
+          <div className="w-full h-1.5 rounded-xs border border-current bg-blue-400/30" />
+          <div className="w-full h-1.5 rounded-xs border border-current bg-blue-400/30" />
+        </div>
+      ),
+      canBuy: money >= doubleDeckerCost && !!onBuyDoubleDecker,
+      action: onBuyDoubleDecker || (() => {}),
+      currentCount: inventory.doubleDeckerTrains || 0,
+      countLabelVi: 'Thẻ sẵn sàng',
+      countLabelEn: 'Tokens'
+    },
+    {
+      titleVi: 'Tuyến Buýt Nhanh BRT (Qua cầu miễn phí)',
+      titleEn: 'Feeder BRT Bus Route',
+      descVi: 'Mở thêm tuyến xe buýt trung chuyển, qua cầu đường bộ vượt sông MIỄN PHÍ không tốn Hầm.',
+      descEn: 'Add feeder bus route crossing road bridges across rivers with ZERO tunnel tokens required.',
+      cost: feederBusCost,
+      icon: (
+        <span className="text-base leading-none">🚌</span>
+      ),
+      canBuy: money >= feederBusCost && !!onBuyFeederBus,
+      action: onBuyFeederBus || (() => {}),
+      currentCount: inventory.feederBuses || 0,
+      countLabelVi: 'Đã mở',
+      countLabelEn: 'Unlocked'
+    },
+    {
       titleVi: 'Toa Chở Khách Phụ',
       titleEn: 'Carriage Extension',
       descVi: 'Gắn thêm toa vào đoàn tàu hiện có (+4 sức chứa khách mỗi toa).',
       descEn: 'Attach extra carriage to an active train (+4 passenger capacity).',
       cost: carriageCost,
-      icon: <Layers className="w-5 h-5 text-blue-400" />,
+      icon: <Layers className="w-5 h-5 text-indigo-400" />,
       canBuy: money >= carriageCost,
       action: onBuyCarriage,
       currentCount: inventory.carriages,

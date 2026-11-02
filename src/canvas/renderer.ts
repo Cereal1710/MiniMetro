@@ -731,12 +731,15 @@ export function renderScene(
           ctx.stroke();
           ctx.restore();
 
-          // B. Main solid line
+          // B. Main line
           ctx.save();
           ctx.strokeStyle = line.color;
           ctx.lineWidth = solidLineWidth;
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
+          if (line.type === 'feeder_bus') {
+            ctx.setLineDash([10, 5]);
+          }
           ctx.beginPath();
           ctx.moveTo(run.segments[0].pA.x, run.segments[0].pA.y);
           for (const s of run.segments) {
@@ -745,6 +748,27 @@ export function renderScene(
           ctx.stroke();
           ctx.restore();
         } else {
+          // Feature 8: Feeder Bus uses road bridges across rivers
+          if (line.type === 'feeder_bus') {
+            ctx.save();
+            ctx.strokeStyle = casingColor;
+            ctx.lineWidth = solidLineWidth + 3;
+            ctx.beginPath();
+            ctx.moveTo(run.segments[0].pA.x, run.segments[0].pA.y);
+            for (const s of run.segments) ctx.lineTo(s.pB.x, s.pB.y);
+            ctx.stroke();
+
+            ctx.strokeStyle = line.color;
+            ctx.lineWidth = solidLineWidth;
+            ctx.setLineDash([10, 5]);
+            ctx.beginPath();
+            ctx.moveTo(run.segments[0].pA.x, run.segments[0].pA.y);
+            for (const s of run.segments) ctx.lineTo(s.pB.x, s.pB.y);
+            ctx.stroke();
+            ctx.restore();
+            continue;
+          }
+
           // --- WATER: Two parallel dashed lines (Hinh 1 & Screenshot 1, 4, 5) ---
           const dashPattern = [6, 4.5];
           const offsetDist = 2.4;
@@ -1142,10 +1166,18 @@ export function renderScene(
       ctx.translate(car.x, car.y);
       ctx.rotate(car.angle);
 
-      // Clean solid train body in line color
+      const isBus = line.type === 'feeder_bus';
+      const isDouble = !!train.isDoubleDecker;
+
+      // Clean solid vehicle body in line color
       ctx.fillStyle = line.color;
       ctx.beginPath();
-      ctx.roundRect(-carLength / 2, -carWidth / 2, carLength, carWidth, 3.2);
+      if (isBus) {
+        // Bus body silhouette with rounded front cab
+        ctx.roundRect(-carLength / 2, -carWidth / 2, carLength, carWidth, [3.2, 5.5, 5.5, 3.2]);
+      } else {
+        ctx.roundRect(-carLength / 2, -carWidth / 2, carLength, carWidth, 3.2);
+      }
       ctx.fill();
 
       // Solid black outline for crisp, high-contrast Mini Metro train cars
@@ -1153,12 +1185,44 @@ export function renderScene(
       ctx.lineWidth = 1.8;
       ctx.stroke();
 
+      // Feeder Bus front windscreen divider
+      if (isBus) {
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(carLength / 2 - 3.2, -carWidth / 2 + 1);
+        ctx.lineTo(carLength / 2 - 3.2, carWidth / 2 - 1);
+        ctx.stroke();
+      }
+
+      // Feature 7: Double-decker dual-deck dividing stripe
+      if (isDouble) {
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 0.9;
+        ctx.beginPath();
+        ctx.moveTo(-carLength / 2 + 1.5, 0);
+        ctx.lineTo(carLength / 2 - 1.5, 0);
+        ctx.stroke();
+      }
+
+      // Feature 10: Night Maintenance Train beacon
+      if (train.isMaintenanceTrain && c === 0) {
+        const pulse = (Math.sin(performance.now() / 150) + 1) * 0.5;
+        ctx.fillStyle = `rgba(245, 158, 11, ${0.45 + 0.55 * pulse})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#D97706';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+
       // Headlight lamp on the front nose of the lead locomotive car
       if (c === 0) {
         const noseX = carLength / 2 - 1.5;
-        ctx.fillStyle = 'rgba(250, 204, 21, 0.88)'; // Warm yellow lamp lens
+        ctx.fillStyle = isBus ? 'rgba(251, 191, 36, 0.95)' : 'rgba(250, 204, 21, 0.88)'; // Warm yellow lamp lens
         ctx.beginPath();
-        ctx.arc(noseX, 0, 2.2, 0, Math.PI * 2);
+        ctx.arc(noseX, 0, isBus ? 1.9 : 2.2, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
         ctx.lineWidth = 0.8;
@@ -1166,7 +1230,7 @@ export function renderScene(
       }
 
       // Passengers inside the train: clean geometric shapes (white with crisp dark outline)
-      const passengersPerCar = 4;
+      const passengersPerCar = isDouble ? 8 : 4;
       const startPassengerIdx = c * passengersPerCar;
       const endPassengerIdx = Math.min(train.passengers.length, startPassengerIdx + passengersPerCar);
       const carPassengerCount = endPassengerIdx - startPassengerIdx;
@@ -1174,10 +1238,31 @@ export function renderScene(
       for (let pIdx = startPassengerIdx; pIdx < endPassengerIdx; pIdx++) {
         const passenger = train.passengers[pIdx];
         const localPIdx = pIdx - startPassengerIdx;
-        const spacing = carLength / (carPassengerCount + 1);
-        const px = -carLength / 2 + spacing * (localPIdx + 1);
-        const py = 0;
-        drawShape(ctx, passenger.targetShape, px, py, 2.7, '#FFFFFF', '#0F172A', 0.9);
+
+        let px: number;
+        let py: number;
+
+        if (isDouble) {
+          // Upper deck (even idx) and lower deck (odd idx)
+          const isUpper = localPIdx % 2 === 0;
+          const tierIdx = Math.floor(localPIdx / 2);
+          const tierTotal = Math.ceil(carPassengerCount / 2);
+          const spacing = carLength / (Math.max(1, tierTotal) + 1);
+          px = -carLength / 2 + spacing * (tierIdx + 1);
+          py = isUpper ? -2.2 : 2.2;
+        } else {
+          const spacing = carLength / (carPassengerCount + 1);
+          px = -carLength / 2 + spacing * (localPIdx + 1);
+          py = 0;
+        }
+
+        drawShape(ctx, passenger.targetShape, px, py, isDouble ? 2.2 : 2.7, '#FFFFFF', '#0F172A', 0.9);
+
+        // Feature 19: Minimalist suitcase icon next to luggage passenger
+        if (passenger.hasLuggage) {
+          ctx.fillStyle = '#F59E0B';
+          ctx.fillRect(px + (isDouble ? 2.0 : 2.4), py - 1.0, 1.8, 2.0);
+        }
       }
 
       ctx.restore();

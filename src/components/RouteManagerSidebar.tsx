@@ -581,10 +581,12 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                         ? (lang === 'vi' ? 'Tốc độ +80%' : '+80% speed')
                         : (line.type || 'metro') === 'intercity'
                         ? (lang === 'vi' ? 'Tốc độ +20%' : '+20% speed')
+                        : (line.type || 'metro') === 'feeder_bus'
+                        ? (lang === 'vi' ? 'Buýt BRT (Cầu vượt miễn phí)' : 'BRT Bus (Free bridges)')
                         : (lang === 'vi' ? 'Tốc độ Chuẩn (1.0x)' : 'Standard (1.0x)')}
                     </span>
                   </div>
-                  <div className={`grid grid-cols-3 gap-1 p-1 rounded-xl border ${
+                  <div className={`grid grid-cols-4 gap-1 p-1 rounded-xl border ${
                     isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-neutral-100 border-neutral-300'
                   }`}>
                     <button
@@ -618,7 +620,7 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                       }`}
                     >
                       <span>🚆</span>
-                      <span className="truncate">Intercity</span>
+                      <span className="truncate">Inter</span>
                     </button>
 
                     <button
@@ -630,12 +632,29 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                       title={lang === 'vi' ? 'High Speed: Nhanh hơn 80% so với metro' : 'High Speed: 80% faster than metro'}
                       className={`py-1 px-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
                         line.type === 'high_speed'
-                          ? 'bg-amber-600 text-white shadow-xs'
+                          ? 'bg-purple-600 text-white shadow-xs'
                           : 'opacity-60 hover:opacity-100 hover:bg-slate-700/30'
                       }`}
                     >
                       <span>🚅</span>
-                      <span className="truncate">H.Speed</span>
+                      <span className="truncate">H.Spd</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onChangeLineType?.(line.id, 'feeder_bus');
+                      }}
+                      title={lang === 'vi' ? 'Buýt BRT: Qua cầu đường bộ vượt sông MIỄN PHÍ không tốn Hầm' : 'Feeder Bus: Free road bridge river crossing'}
+                      className={`py-1 px-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
+                        line.type === 'feeder_bus'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'opacity-60 hover:opacity-100 hover:bg-slate-700/30'
+                      }`}
+                    >
+                      <span>🚌</span>
+                      <span className="truncate">BRT</span>
                     </button>
                   </div>
                 </div>
@@ -778,8 +797,8 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
       <div className={`p-3 border-t mt-auto space-y-2.5 ${
         isDark ? 'border-slate-800 bg-slate-900/90' : 'border-neutral-200 bg-neutral-50/90'
       }`}>
-        {/* Quick Inventory Badges (2-column: Trains and Carriages) */}
-        <div className="grid grid-cols-2 gap-2 text-center">
+        {/* Quick Inventory Badges (Trains, Carriages, Double-Decker) */}
+        <div className={`grid ${(inventory.doubleDeckerTrains ?? 0) > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-2 text-center`}>
           {/* Spare Trains in Depot */}
           <div
             onClick={onOpenShop}
@@ -813,6 +832,24 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
               {inventory.carriages}
             </div>
           </div>
+
+          {/* Double-Decker Trains (if unlocked/purchased) */}
+          {(inventory.doubleDeckerTrains ?? 0) > 0 && (
+            <div
+              onClick={onOpenShop}
+              title={lang === 'vi' ? 'Tàu 2 tầng sẵn sàng (Sức chứa x2)' : 'Double-decker trains in stock'}
+              className={`p-2 rounded-xl border transition cursor-pointer ${
+                isDark ? 'bg-amber-950/30 border-amber-500/40 hover:border-amber-400' : 'bg-amber-50 border-amber-300 hover:border-amber-500'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-1 text-[11px] text-amber-500 font-semibold mb-0.5">
+                <span>2-Tầng</span>
+              </div>
+              <div className="font-mono font-black text-sm text-amber-500">
+                {inventory.doubleDeckerTrains}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Shop Trigger Button */}

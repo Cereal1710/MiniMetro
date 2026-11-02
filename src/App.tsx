@@ -2096,6 +2096,8 @@ export default function App() {
           onBuyLine={() => { engine?.buyLine(); syncSnapshot(); }}
           onBuyInterchange={() => { engine?.buyInterchangeUpgrade(); syncSnapshot(); }}
           onBuyTunnel={() => { engine?.buyTunnel(); syncSnapshot(); }}
+          onBuyDoubleDecker={() => { engine?.buyDoubleDeckerTrain(); syncSnapshot(); }}
+          onBuyFeederBus={() => { engine?.buyFeederBus(); syncSnapshot(); }}
         />
       )}
 

@@ -11,6 +11,11 @@ export interface Passenger {
   vipIcon?: string;
   vipTimeLimit?: number;
   vipReward?: number;
+  hasLuggage?: boolean; // Feature 19: Khách mang vali (chiếm 2 chỗ, trả x3 vé)
+  isMonthlyPassHolder?: boolean; // Feature 12: 80% dùng vé tháng ($1400/tuần)
+  stationsTraveled?: number; // Số ga đã đi qua (1 ga = 2$)
+  commuterHomeStationId?: string; // Feature 16: Ga nhà đi khứ hồi
+  isReturnTrip?: boolean; // Chuyến về nhà buổi chiều
 }
 
 export interface VipQuestInfo {
@@ -88,7 +93,7 @@ export interface LineSegment {
   crossesRiver: boolean;
 }
 
-export type MetroLineType = 'metro' | 'intercity' | 'high_speed';
+export type MetroLineType = 'metro' | 'intercity' | 'high_speed' | 'feeder_bus';
 
 export interface LinePerformanceStats {
   todayPassengers: number;
@@ -120,7 +125,7 @@ export interface Train {
   id: string;
   lineId: string;
   carriagesCount: number; // 0, 1, 2
-  capacity: number; // base 6 + 4 per carriage
+  capacity: number; // base 6 + 4 per carriage (or 12 + 8 for double decker)
   speed: number; // base speed
   segmentIndex: number;
   progress: number; // 0 to 1
@@ -136,6 +141,8 @@ export interface Train {
   isBulletTrain?: boolean;
   isStuck?: boolean; // train is stuck and won't move
   stuckTimer?: number; // how long train has been stuck
+  isDoubleDecker?: boolean; // Feature 7: Tàu 2 tầng (sức chứa gấp đôi)
+  isMaintenanceTrain?: boolean; // Feature 10: Tàu bảo trì đường ray ban đêm
 }
 
 export interface FloatingText {
@@ -298,6 +305,8 @@ export interface GameInventory {
   carriages: number;
   interchangeTokens: number;
   tunnelTokens: number;
+  doubleDeckerTrains?: number; // Feature 7: Thẻ tàu hai tầng
+  feederBuses?: number; // Feature 8: Xe buýt trung chuyển BRT
 }
 
 export interface WeeklyChoiceOption {
@@ -330,6 +339,11 @@ export interface GameStats {
   todayPassengers?: number;
   citizenSatisfaction?: number; // 0 to 100%
   dailyHistory?: DailyPassengerRecord[];
+  monthlyPassHoldersCount?: number; // 80% cư dân dùng vé tháng
+  weeklyPassRevenueTotal?: number; // Tổng tiền vé tháng nhận được ($1400/người/tuần)
+  distanceFareRevenueTotal?: number; // Tổng tiền vé lẻ (1 ga = $2)
+  luggageFareRevenueTotal?: number; // Tổng tiền vé hành khách mang vali (x3)
+  nightMaintenanceCount?: number; // Số lần bảo trì đêm hoàn tất
 }
 
 export type WeatherType = 'sunny' | 'rainy' | 'storm' | 'flooded';
