@@ -147,7 +147,7 @@ export default function App() {
   });
   const [isShiftDown, setIsShiftDown] = useState(false);
 
-    const handleToggleTrackStyle = useCallback(() => {
+  const handleToggleTrackStyle = useCallback(() => {
     setTrackStyle(prev => {
       const next = prev === 'curved' ? 'octolinear' : prev === 'octolinear' ? 'straight' : 'curved';
       localStorage.setItem('mini_metro_track_style', next);
@@ -592,7 +592,7 @@ export default function App() {
             engine.serialize(),
             engine.state.stats.totalPassengersDelivered,
             engine.state.stats.totalDays
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }, 2500);
@@ -608,7 +608,7 @@ export default function App() {
             engine.serialize(),
             engine.state.stats.totalPassengersDelivered,
             engine.state.stats.totalDays
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     };
@@ -624,7 +624,7 @@ export default function App() {
             engine.serialize(),
             engine.state.stats.totalPassengersDelivered,
             engine.state.stats.totalDays
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     };
@@ -889,7 +889,6 @@ export default function App() {
               districts: engine.mapConfig.districts,
               inspectorState: engine.state.inspectorState,
               activeSurgeEvent: engine.state.activeSurgeEvent,
-              hasTransitAdContract: engine.state.stats?.hasTransitAdContract,
               isGameOver: engine.state.isGameOver,
               gameOverStationId: engine.state.gameOverStationId
             }
@@ -1034,11 +1033,11 @@ export default function App() {
             setUiSnapshot(prevSnapshot =>
               prevSnapshot
                 ? {
-                    ...prevSnapshot,
-                    lines: [...engine.state.lines],
-                    trains: [...engine.state.trains],
-                    inventory: { ...engine.state.inventory }
-                  }
+                  ...prevSnapshot,
+                  lines: [...engine.state.lines],
+                  trains: [...engine.state.trains],
+                  inventory: { ...engine.state.inventory }
+                }
                 : null
             );
           }
@@ -1159,11 +1158,11 @@ export default function App() {
         setUiSnapshot(prev =>
           prev
             ? {
-                ...prev,
-                lines: [...engine.state.lines],
-                trains: [...engine.state.trains],
-                inventory: { ...engine.state.inventory }
-              }
+              ...prev,
+              lines: [...engine.state.lines],
+              trains: [...engine.state.trains],
+              inventory: { ...engine.state.inventory }
+            }
             : null
         );
       }
@@ -1476,14 +1475,6 @@ export default function App() {
     syncSnapshot();
   }, [syncSnapshot]);
 
-  const handleRenameLine = useCallback((lineId: string, newName: string) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    if (engine.renameLine(lineId, newName)) {
-      syncSnapshot();
-    }
-  }, [syncSnapshot]);
-
   const handleRepairTrain = useCallback((trainId: string) => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -1496,30 +1487,6 @@ export default function App() {
     if (!engine) return;
     engine.deployStationSecurity(stationId);
     syncSnapshot();
-  }, [syncSnapshot]);
-
-  const handleToggleCBTC = useCallback((lineId: string) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    if (engine.toggleLineCBTC(lineId)) {
-      syncSnapshot();
-    }
-  }, [syncSnapshot]);
-
-  const handleUpgradeStationSmartIC = useCallback((stationId: string) => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    if (engine.upgradeStationSmartIC(stationId)) {
-      syncSnapshot();
-    }
-  }, [syncSnapshot]);
-
-  const handleBuyTransitAdContract = useCallback(() => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    if (engine.toggleTransitAdContract()) {
-      syncSnapshot();
-    }
   }, [syncSnapshot]);
 
   const handleToggleDisableIncidents = useCallback(() => {
@@ -1625,9 +1592,8 @@ export default function App() {
   const state = uiSnapshot || engine?.state;
 
   return (
-    <div className={`w-screen h-dvh flex flex-col overflow-hidden select-none ${
-      theme === 'dark' ? 'bg-[#252528] text-slate-100' : 'bg-neutral-100 text-slate-900'
-    }`}>
+    <div className={`w-screen h-dvh flex flex-col overflow-hidden select-none ${theme === 'dark' ? 'bg-[#252528] text-slate-100' : 'bg-neutral-100 text-slate-900'
+      }`}>
       {/* Top Header Bar */}
       {state && !state.isGameOver && (
         <Header
@@ -1747,7 +1713,6 @@ export default function App() {
             onOpenShop={() => setIsShopModalOpen(true)}
             onOpenLineSettings={(line) => setEditingSettingsLine(line)}
             onToggleLineDepot={handleToggleLineDepot}
-            onRenameLine={handleRenameLine}
           />
         )}
 
@@ -1762,15 +1727,14 @@ export default function App() {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className={`w-full h-full block touch-none select-none ${
-              isPanningRef.current
+            className={`w-full h-full block touch-none select-none ${isPanningRef.current
                 ? 'cursor-grabbing'
                 : isShiftDown
-                ? 'cursor-grab'
-                : isPlacingStation
-                ? 'cursor-cell'
-                : 'cursor-crosshair'
-            }`}
+                  ? 'cursor-grab'
+                  : isPlacingStation
+                    ? 'cursor-cell'
+                    : 'cursor-crosshair'
+              }`}
           />
 
           {/* Top-Left Map Cards Dock: Passenger Analytics, City Weather (Collapsible vertically) */}
@@ -1840,7 +1804,6 @@ export default function App() {
               onOpenShop={() => setIsShopModalOpen(true)}
               onOpenBank={() => setIsBankModalOpen(true)}
               onToggleCreative={() => setIsCreativeToolbarOpen(prev => !prev)}
-              onRenameLine={handleRenameLine}
             />
           )}
 
@@ -1855,15 +1818,13 @@ export default function App() {
             )}
 
             {/* Zoom Controls (Sleek Frosted Glass Pill) */}
-            <div className={`flex items-center rounded-xl p-1 border shadow-lg backdrop-blur-xl gap-0.5 ${
-              theme === 'dark' ? 'bg-slate-950/80 border-slate-800 text-slate-200' : 'bg-white/90 border-slate-200 text-slate-800'
-            }`}>
+            <div className={`flex items-center rounded-xl p-1 border shadow-lg backdrop-blur-xl gap-0.5 ${theme === 'dark' ? 'bg-slate-950/80 border-slate-800 text-slate-200' : 'bg-white/90 border-slate-200 text-slate-800'
+              }`}>
               <button
                 onClick={handleZoomOut}
                 title={lang === 'vi' ? 'Thu nhỏ bản đồ' : 'Zoom Out'}
-                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${
-                  theme === 'dark' ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-600'
-                }`}
+                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-600'
+                  }`}
               >
                 <ZoomOut className="w-3.5 h-3.5" />
               </button>
@@ -1871,9 +1832,8 @@ export default function App() {
               <button
                 onClick={handleResetCamera}
                 title={lang === 'vi' ? 'Đặt lại 100% (Giữ Shift + cuộn để zoom)' : 'Reset 100%'}
-                className={`px-2 py-0.5 rounded-md text-xs font-mono font-bold transition cursor-pointer ${
-                  theme === 'dark' ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-100 text-emerald-600'
-                }`}
+                className={`px-2 py-0.5 rounded-md text-xs font-mono font-bold transition cursor-pointer ${theme === 'dark' ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-100 text-emerald-600'
+                  }`}
               >
                 {zoomPercent}%
               </button>
@@ -1881,9 +1841,8 @@ export default function App() {
               <button
                 onClick={handleZoomIn}
                 title={lang === 'vi' ? 'Phóng to bản đồ' : 'Zoom In'}
-                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${
-                  theme === 'dark' ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-600'
-                }`}
+                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-600'
+                  }`}
               >
                 <ZoomIn className="w-3.5 h-3.5" />
               </button>
@@ -1893,9 +1852,8 @@ export default function App() {
               <button
                 onClick={handleResetCamera}
                 title={lang === 'vi' ? 'Căn giữa bản đồ' : 'Fit Map'}
-                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${
-                  theme === 'dark' ? 'hover:bg-slate-800 text-cyan-400 hover:text-cyan-300' : 'hover:bg-slate-100 text-cyan-600'
-                }`}
+                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${theme === 'dark' ? 'hover:bg-slate-800 text-cyan-400 hover:text-cyan-300' : 'hover:bg-slate-100 text-cyan-600'
+                  }`}
               >
                 <Maximize2 className="w-3.5 h-3.5" />
               </button>
@@ -1934,11 +1892,10 @@ export default function App() {
                       type="button"
                       onClick={() => setPlacingShape(shape)}
                       title={`Hình ${shape}`}
-                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-sm flex items-center justify-center font-bold transition cursor-pointer active:scale-95 touch-manipulation ${
-                        isSel
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-sm flex items-center justify-center font-bold transition cursor-pointer active:scale-95 touch-manipulation ${isSel
                           ? 'bg-emerald-500 text-slate-950 ring-2 ring-emerald-300 shadow-md scale-105'
                           : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
-                      }`}
+                        }`}
                     >
                       {glyphs[shape]}
                     </button>
@@ -1990,27 +1947,10 @@ export default function App() {
               high_speed: {
                 label: 'High Speed',
                 speedLabel: '+80%',
-                badgeBg: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
-                icon: '🚅'
-              },
-              double_decker: {
-                label: 'Tàu 2 Tầng',
-                speedLabel: '+20% (2x Chỗ)',
-                badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
-                icon: '🏢'
-              },
-              feeder_bus: {
-                label: 'Buýt BRT',
-                speedLabel: '-10% (0.90x)',
                 badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-                icon: '🚌'
+                icon: '🚅'
               }
-            }[lineType] || {
-              label: 'Metro',
-              speedLabel: '1.0x',
-              badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-              icon: '🚇'
-            };
+            }[lineType];
 
             return (
               <div
@@ -2104,9 +2044,6 @@ export default function App() {
           lang={lang}
           onClose={() => setEditingSettingsLine(null)}
           onSave={handleSaveLineSettings}
-          onRenameLine={handleRenameLine}
-          onToggleCBTC={handleToggleCBTC}
-          onUpgradeStationSmartIC={handleUpgradeStationSmartIC}
         />
       )}
 
@@ -2148,15 +2085,11 @@ export default function App() {
           onClose={() => setIsShopModalOpen(false)}
           onBuyTrain={() => { engine?.buyTrain(); syncSnapshot(); }}
           onBuyCarriage={() => { engine?.buyCarriage(); syncSnapshot(); }}
-          onBuyDoubleDeckerCarriage={() => { engine?.buyDoubleDeckerCarriage(); syncSnapshot(); }}
           onBuyLine={() => { engine?.buyLine(); syncSnapshot(); }}
           onBuyInterchange={() => { engine?.buyInterchangeUpgrade(); syncSnapshot(); }}
           onBuyTunnel={() => { engine?.buyTunnel(); syncSnapshot(); }}
           onBuyDoubleDecker={() => { engine?.buyDoubleDeckerTrain(); syncSnapshot(); }}
           onBuyFeederBus={() => { engine?.buyFeederBus(); syncSnapshot(); }}
-          hasTransitAdContract={state.stats?.hasTransitAdContract}
-          transitAdDaysRemaining={state.stats?.transitAdDaysRemaining}
-          onBuyTransitAdContract={handleBuyTransitAdContract}
         />
       )}
 
@@ -2361,16 +2294,16 @@ export default function App() {
         }}
         onSelectShape={(shape) => setPlacingShape(shape)}
         onChangeStationName={(name) => setCustomStationName(name)}
-        onRandomizeStationName={() => {}}
+        onRandomizeStationName={() => { }}
         onSpawnRandomStation={() => {
           if (engine) {
             engine.spawnStation();
             syncSnapshot();
           }
         }}
-        onFinishRiverDrawing={() => {}}
-        onClearAllRivers={() => {}}
-        onResetRivers={() => {}}
+        onFinishRiverDrawing={() => { }}
+        onClearAllRivers={() => { }}
+        onResetRivers={() => { }}
         onAddQuickLine={() => {
           if (engine) {
             engine.state.inventory.availableLines++;

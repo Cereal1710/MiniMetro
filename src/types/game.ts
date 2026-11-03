@@ -11,14 +11,11 @@ export interface Passenger {
   vipIcon?: string;
   vipTimeLimit?: number;
   vipReward?: number;
-  hasLuggage?: boolean; // Feature 19 (cũ): Khách mang vali (chiếm 2 chỗ, trả x3 vé)
+  hasLuggage?: boolean; // Feature 19: Khách mang vali (chiếm 2 chỗ, trả x3 vé)
   isMonthlyPassHolder?: boolean; // Feature 12: 80% dùng vé tháng ($1400/tuần)
   stationsTraveled?: number; // Số ga đã đi qua (1 ga = 2$)
   commuterHomeStationId?: string; // Feature 16: Ga nhà đi khứ hồi
   isReturnTrip?: boolean; // Chuyến về nhà buổi chiều
-  isStudent?: boolean; // Feature 13: Học sinh tan trường mang ba lô vàng
-  isTourist?: boolean; // Feature 14: Du khách quốc tế mang máy ảnh ($10 tip nếu đi thẳng)
-  transferCount?: number; // Feature 14: Số lần đổi tuyến
 }
 
 export interface VipQuestInfo {
@@ -48,9 +45,6 @@ export interface Station {
   pulseTimer?: number;
   isFlooded?: boolean;
   specialHubType?: 'airport' | 'seaport';
-  hasSmartIC?: boolean; // Feature 24: Cổng soát vé thông minh NFC/IC Card (-50% dwell time)
-  isExpoCentre?: boolean; // Feature 28: Trung tâm triển lãm quốc tế Expo
-  expoRemainingDays?: number; // Thời gian còn lại của tuần lễ Expo
 }
 
 export interface BankLoan {
@@ -99,7 +93,7 @@ export interface LineSegment {
   crossesRiver: boolean;
 }
 
-export type MetroLineType = 'metro' | 'intercity' | 'high_speed' | 'double_decker' | 'feeder_bus';
+export type MetroLineType = 'metro' | 'intercity' | 'high_speed' | 'feeder_bus';
 
 export interface LinePerformanceStats {
   todayPassengers: number;
@@ -125,7 +119,6 @@ export interface MetroLine {
   dispatchTimer?: number;
   stats?: LinePerformanceStats;
   terminusStations?: string[]; // stations where trains cannot pass (decorative endpoints)
-  hasCBTC?: boolean; // Feature 2: Tín hiệu tự hành CBTC (giãn cách an toàn giảm xuống 0.18)
 }
 
 export interface Train {
@@ -150,7 +143,6 @@ export interface Train {
   stuckTimer?: number; // how long train has been stuck
   isDoubleDecker?: boolean; // Feature 7: Tàu 2 tầng (sức chứa gấp đôi)
   isMaintenanceTrain?: boolean; // Feature 10: Tàu bảo trì đường ray ban đêm
-  isCBTC?: boolean; // Feature 2: Tàu tự hành CBTC
 }
 
 export interface FloatingText {
@@ -314,7 +306,6 @@ export interface GameInventory {
   interchangeTokens: number;
   tunnelTokens: number;
   doubleDeckerTrains?: number; // Feature 7: Thẻ tàu hai tầng
-  doubleDeckerCarriages?: number; // Toa xe 2 tầng riêng biệt (+40% giá so với toa thường)
   feederBuses?: number; // Feature 8: Xe buýt trung chuyển BRT
 }
 
@@ -353,11 +344,6 @@ export interface GameStats {
   distanceFareRevenueTotal?: number; // Tổng tiền vé lẻ (1 ga = $2)
   luggageFareRevenueTotal?: number; // Tổng tiền vé hành khách mang vali (x3)
   nightMaintenanceCount?: number; // Số lần bảo trì đêm hoàn tất
-  hasTransitAdContract?: boolean; // Feature 19: Hợp đồng quảng cáo ($200/ngày/toa)
-  transitAdDaysRemaining?: number; // Feature 19: Số ngày còn lại của hợp đồng quảng cáo (mua theo tuần)
-  totalAdRevenue?: number; // Tổng doanh thu từ quảng cáo thân tàu
-  totalTouristTips?: number; // Feature 14: Tổng tiền tip từ du khách ($10/lượt)
-  expoEventsCompleted?: number; // Feature 28: Số tuần lễ Expo hoàn thành xuất sắc
 }
 
 export type WeatherType = 'sunny' | 'rainy' | 'storm' | 'flooded';
