@@ -15,6 +15,7 @@ import {
 import { CityMapConfig } from '../types/game';
 import { UserProfile } from '../services/firebase';
 import { CAMPAIGN_SCENARIOS } from '../data/campaignScenarios';
+import { MenuAnimatedTracks } from './MenuAnimatedTracks';
 
 interface StartMenuModalProps {
   isOpen: boolean;
@@ -69,95 +70,15 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center ${isDark ? 'bg-[#252528] text-white' : 'bg-[#FAF9F6] text-neutral-900'} select-none overflow-hidden font-sans`}>
-      {/* Authentic Mini Metro Background Vector Canvas / SVG Track Lines (as seen in Screenshot 1) */}
-      <svg
-        className={`absolute inset-0 w-full h-full pointer-events-none ${isDark ? 'opacity-90' : 'opacity-70'}`}
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <defs>
-          <linearGradient id="yellowLine" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#eab308" />
-            <stop offset="100%" stopColor="#ca8a04" />
-          </linearGradient>
-        </defs>
-
-        {/* Diagonal Green Line (Left-Top to Center-Left) */}
-        <path
-          d="M 120 0 L 120 60 L 20 220 L 20 400"
-          fill="none"
-          stroke="#48bb78"
-          strokeWidth="10"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {/* Pink/Coral Line (Bottom-Left) */}
-        <path
-          d="M 0 450 L 120 450 L 190 560 L 320 720"
-          fill="none"
-          stroke="#e53e3e"
-          strokeWidth="10"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* Pink Train Car */}
-        <rect
-          x="140"
-          y="485"
-          width="42"
-          height="14"
-          transform="rotate(57.5 140 485)"
-          fill="#e53e3e"
-          rx="3"
-        />
-
-        {/* Yellow Line (Center Vertical to Bottom Right) */}
-        <path
-          d="M 640 0 L 640 420 L 710 520 L 880 750"
-          fill="none"
-          stroke="#eab308"
-          strokeWidth="10"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* Yellow Train Car */}
-        <rect
-          x="715"
-          y="525"
-          width="45"
-          height="15"
-          transform="rotate(53.5 715 525)"
-          fill="#eab308"
-          rx="3"
-        />
-
-        {/* Cyan Line (Parallel running alongside yellow line) */}
-        <path
-          d="M 740 0 L 740 380 L 740 500 L 920 750"
-          fill="none"
-          stroke="#38bdf8"
-          strokeWidth="10"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* Cyan Train Car */}
-        <rect
-          x="785"
-          y="560"
-          width="45"
-          height="15"
-          transform="rotate(54 785 560)"
-          fill="#38bdf8"
-          rx="3"
-        />
-      </svg>
+      {/* Animated Mini Metro Running Trains & Vector Tracks Background */}
+      <MenuAnimatedTracks theme={theme} />
 
       {/* Top-Left Back / Close Button */}
       {screen !== 'main' ? (
         <button
           type="button"
           onClick={() => setScreen('main')}
-          className="absolute top-6 left-6 z-20 flex items-center gap-2 px-3.5 py-2 rounded-xs bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold transition cursor-pointer shadow-lg active:scale-95"
+          className="absolute top-6 left-6 z-20 flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold transition cursor-pointer shadow-lg active:scale-95"
         >
           <ArrowLeft className="w-5 h-5" />
           <span className="text-sm uppercase tracking-wider">{lang === 'vi' ? 'Quay lại' : 'Back'}</span>
@@ -189,13 +110,13 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
             </h1>
           </div>
 
-          {/* Action List with Authentic Blue Rectangular Highlight Boxes */}
+          {/* Action List with Smooth Blue Rounded Highlight Boxes */}
           <div className="flex flex-col items-start gap-3 w-auto">
             {/* Play Button */}
             <button
               type="button"
               onClick={() => setScreen('city_select')}
-              className="group flex items-center gap-3.5 px-5 py-2.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-extrabold text-2xl sm:text-3xl tracking-tight shadow-md transition-all cursor-pointer rounded-xs active:scale-98"
+              className="group flex items-center gap-3.5 px-6 py-3 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-extrabold text-2xl sm:text-3xl tracking-tight shadow-md transition-all cursor-pointer rounded-2xl active:scale-98"
             >
               <span className="text-2xl sm:text-3xl transition-transform group-hover:translate-x-1">➜</span>
               <span>{lang === 'vi' ? 'Chơi' : 'Play'}</span>
@@ -205,7 +126,7 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
             <button
               type="button"
               onClick={() => setScreen('challenges')}
-              className="group flex items-center gap-3.5 px-5 py-2.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-extrabold text-2xl sm:text-3xl tracking-tight shadow-md transition-all cursor-pointer rounded-xs active:scale-98"
+              className="group flex items-center gap-3.5 px-6 py-3 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-extrabold text-2xl sm:text-3xl tracking-tight shadow-md transition-all cursor-pointer rounded-2xl active:scale-98"
             >
               <span className="text-2xl sm:text-3xl transition-transform group-hover:translate-x-1">➜</span>
               <span className="flex items-center gap-2">
@@ -218,7 +139,7 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
             <button
               type="button"
               onClick={() => setScreen('options')}
-              className="group flex items-center gap-3.5 px-5 py-2.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-extrabold text-2xl sm:text-3xl tracking-tight shadow-md transition-all cursor-pointer rounded-xs active:scale-98"
+              className="group flex items-center gap-3.5 px-6 py-3 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-extrabold text-2xl sm:text-3xl tracking-tight shadow-md transition-all cursor-pointer rounded-2xl active:scale-98"
             >
               <span className="text-2xl sm:text-3xl transition-transform group-hover:translate-y-1">↓</span>
               <span>{lang === 'vi' ? 'Cài đặt' : 'Options'}</span>
@@ -228,7 +149,7 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
             <button
               type="button"
               onClick={onPlay}
-              className="group flex items-center gap-3.5 px-5 py-2.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-extrabold text-2xl sm:text-3xl tracking-tight shadow-md transition-all cursor-pointer rounded-xs active:scale-98"
+              className="group flex items-center gap-3.5 px-6 py-3 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-extrabold text-2xl sm:text-3xl tracking-tight shadow-md transition-all cursor-pointer rounded-2xl active:scale-98"
             >
               <span className="text-2xl sm:text-3xl transition-transform group-hover:-translate-x-0.5 group-hover:translate-y-0.5">↙</span>
               <span>{lang === 'vi' ? 'Thoát vào game' : 'Exit'}</span>
@@ -312,7 +233,7 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
               onClick={() => {
                 onPlay();
               }}
-              className="flex items-center gap-3 px-8 py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-black text-lg tracking-wide shadow-xl transition cursor-pointer rounded-xs active:scale-95"
+              className="flex items-center gap-3 px-8 py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white font-black text-lg tracking-wide shadow-xl transition cursor-pointer rounded-2xl active:scale-95"
             >
               <span className="text-xl">➜</span>
               <span>{lang === 'vi' ? 'Bắt đầu chơi ngay' : 'Start Transit Network'}</span>
@@ -322,7 +243,7 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
               <button
                 type="button"
                 onClick={onOpenCityManager}
-                className={`flex items-center gap-2 px-4 py-3.5 rounded-xs font-bold text-sm border transition cursor-pointer ${
+                className={`flex items-center gap-2 px-4 py-3.5 rounded-2xl font-bold text-sm border transition cursor-pointer ${
                   isDark
                     ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white border-neutral-700'
                     : 'bg-white hover:bg-neutral-100 text-neutral-800 border-neutral-300 shadow-xs'
@@ -382,7 +303,7 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
 
                 <button
                   type="button"
-                  className="px-4 py-2 bg-[#3b82f6] group-hover:bg-[#2563eb] text-white text-xs font-bold rounded-xs shadow-md shrink-0 ml-3"
+                  className="px-4 py-2 bg-[#3b82f6] group-hover:bg-[#2563eb] text-white text-xs font-bold rounded-xl shadow-md shrink-0 ml-3"
                 >
                   ➜ {lang === 'vi' ? 'Tham gia' : 'Start'}
                 </button>
@@ -414,7 +335,7 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
                 <button
                   type="button"
                   onClick={onToggleLang}
-                  className="px-4 py-1.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white text-xs font-bold rounded-xs cursor-pointer shadow-md"
+                  className="px-4 py-1.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white text-xs font-bold rounded-xl cursor-pointer shadow-md"
                 >
                   {lang === 'vi' ? 'Tiếng Việt' : 'English'}
                 </button>
@@ -435,7 +356,7 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
                 <button
                   type="button"
                   onClick={onToggleMute}
-                  className={`px-4 py-1.5 rounded-xs text-xs font-bold cursor-pointer border flex items-center gap-1.5 ${
+                  className={`px-4 py-1.5 rounded-xl text-xs font-bold cursor-pointer border flex items-center gap-1.5 ${
                     isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-white border-neutral-700' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border-neutral-300'
                   }`}
                 >
@@ -459,7 +380,7 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
                 <button
                   type="button"
                   onClick={onToggleTheme}
-                  className={`px-4 py-1.5 rounded-xs text-xs font-bold cursor-pointer border flex items-center gap-1.5 ${
+                  className={`px-4 py-1.5 rounded-xl text-xs font-bold cursor-pointer border flex items-center gap-1.5 ${
                     isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-white border-neutral-700' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border-neutral-300'
                   }`}
                 >
@@ -480,7 +401,7 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
               <button
                 type="button"
                 onClick={onOpenTutorial}
-                className={`px-4 py-1.5 rounded-xs text-xs font-bold cursor-pointer border ${
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold cursor-pointer border ${
                   isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-white border-neutral-700' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border-neutral-300'
                 }`}
               >

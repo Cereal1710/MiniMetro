@@ -97,17 +97,17 @@ export const TopLeftMapCards: React.FC<TopLeftMapCardsProps> = ({
   return (
     <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-30 flex flex-col gap-2 max-w-sm w-[92vw] sm:w-80 pointer-events-none select-none transition-all">
       {/* Sleek Floating Glass Pill Dock */}
-      <div className={`pointer-events-auto flex items-center gap-1 p-1 rounded-xl shadow-lg border backdrop-blur-xl transition-all w-fit max-w-full overflow-x-auto scrollbar-none ${
+      <div className={`pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-2xl shadow-xl border backdrop-blur-xl transition-all w-fit max-w-full overflow-x-auto scrollbar-none ${
         isDark
-          ? 'bg-slate-950/80 border-slate-800/80 text-slate-200 shadow-black/40'
-          : 'bg-white/85 border-slate-200/90 text-slate-700 shadow-slate-200/50'
+          ? 'bg-[#252528]/95 border-[#38383e] text-neutral-200'
+          : 'bg-[#FAF9F6]/95 border-[#E2E0D8] text-neutral-800'
       }`}>
         {/* Toggle HUD visibility eye */}
         <button
           type="button"
           onClick={() => setIsHudVisible(v => !v)}
-          className={`p-1.5 rounded-lg transition cursor-pointer shrink-0 ${
-            isDark ? 'hover:bg-slate-800/80 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-900'
+          className={`p-1.5 rounded-xl transition cursor-pointer shrink-0 ${
+            isDark ? 'hover:bg-white/10 text-neutral-400 hover:text-white' : 'hover:bg-neutral-200 text-neutral-600 hover:text-neutral-900'
           }`}
           title={isHudVisible ? (lang === 'vi' ? 'Ẩn thanh tiện ích' : 'Hide HUD') : (lang === 'vi' ? 'Hiện thanh tiện ích' : 'Show HUD')}
         >
@@ -116,20 +116,20 @@ export const TopLeftMapCards: React.FC<TopLeftMapCardsProps> = ({
 
         {isHudVisible && (
           <>
-            <div className={`h-4 w-px shrink-0 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
+            <div className={`h-4 w-px shrink-0 ${isDark ? 'bg-[#38383e]' : 'bg-[#E2E0D8]'}`} />
 
             {/* Chip 1: Passenger Analytics Tab */}
             <button
               type="button"
               onClick={() => toggleTab('analytics')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold transition cursor-pointer shrink-0 ${
                 activeTab === 'analytics'
                   ? isDark
-                    ? 'bg-emerald-400/20 text-emerald-300 border border-emerald-400/40 shadow-xs'
-                    : 'bg-emerald-50 text-emerald-900 border border-emerald-300 shadow-xs'
+                    ? 'bg-[#3b82f6]/20 text-[#38bdf8] border border-[#3b82f6]/40 shadow-xs'
+                    : 'bg-[#3b82f6]/10 text-[#2563eb] border border-[#3b82f6]/30 shadow-xs'
                   : isDark
-                  ? 'hover:bg-slate-800/70 text-slate-300 hover:text-white'
-                  : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+                  ? 'hover:bg-white/10 text-neutral-300 hover:text-white'
+                  : 'hover:bg-neutral-200 text-neutral-700 hover:text-neutral-900'
               }`}
               title={lang === 'vi' ? 'Biểu đồ hành khách' : 'Passenger Flow'}
             >

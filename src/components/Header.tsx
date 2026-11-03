@@ -167,29 +167,49 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className={`h-13 px-3 sm:px-5 flex items-center justify-between border-b transition-colors select-none z-30 shrink-0 gap-2 sm:gap-4 ${
-      isDark ? 'bg-[#202023]/95 border-[#323236] text-slate-100 backdrop-blur-xl' : 'bg-white/90 border-slate-200 text-slate-800 backdrop-blur-xl'
+      isDark ? 'bg-[#252528]/98 border-[#38383e] text-neutral-100 backdrop-blur-xl' : 'bg-[#FAF9F6]/98 border-[#E2E0D8] text-neutral-900 backdrop-blur-xl'
     }`}>
-      {/* Left: Brand & City Selector */}
+      {/* Left: Brand / Return to Menu & City Selector */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-6.5 h-6.5 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-black text-xs shadow-xs shrink-0 tracking-tighter">
-            M
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="font-bold text-xs tracking-tight hidden lg:inline text-slate-200">
-              MINI METRO
-            </span>
+          {onOpenStartMenu ? (
+            <button
+              type="button"
+              onClick={onOpenStartMenu}
+              title={lang === 'vi' ? 'Quay lại Menu chính' : 'Return to Main Menu'}
+              className="flex items-center gap-2 group cursor-pointer"
+            >
+              <span className="px-3 py-1.5 rounded-xl bg-[#3b82f6] hover:bg-[#2563eb] text-white font-black text-xs tracking-wider uppercase transition shadow-sm flex items-center gap-1.5 active:scale-95">
+                <span className="text-sm leading-none">←</span>
+                <span>MENU</span>
+              </span>
+              <span className={`font-extrabold text-sm tracking-tight hidden md:inline-flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                <span>MINI METRO</span>
+                <span className="w-2.5 h-2.5 rounded-xs bg-current inline-block opacity-80" />
+                <span className="text-[11px] font-mono leading-none">▲</span>
+              </span>
+            </button>
+          ) : (
+            <div className={`font-extrabold text-sm tracking-tight flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+              <span>MINI METRO</span>
+              <span className="w-2.5 h-2.5 rounded-xs bg-current inline-block opacity-80" />
+              <span className="text-[11px] font-mono leading-none">▲</span>
+            </div>
+          )}
 
+          <div className="flex items-center gap-1.5 ml-1">
             {/* City Selector */}
             <select
               value={currentCityId}
               onChange={(e) => onSelectCity(e.target.value)}
-              className={`text-xs font-semibold cursor-pointer bg-transparent border-0 outline-none p-0 focus:ring-0 max-w-[85px] sm:max-w-none truncate transition ${
-                isDark ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-600 hover:text-emerald-700'
+              className={`text-xs font-bold cursor-pointer px-2.5 py-1 rounded-lg border transition max-w-[95px] sm:max-w-none truncate ${
+                isDark
+                  ? 'bg-[#202023] border-[#38383e] text-emerald-400 hover:border-[#3b82f6]'
+                  : 'bg-white border-[#E2E0D8] text-emerald-700 hover:border-[#3b82f6]'
               }`}
             >
               {cityMaps.map(m => (
-                <option key={m.id} value={m.id} className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>
+                <option key={m.id} value={m.id} className={isDark ? 'bg-[#252528] text-white' : 'bg-white text-neutral-900'}>
                   {lang === 'vi' ? m.nameVi : m.nameEn}{m.isCustom ? ' (Tùy chỉnh)' : ''}
                 </option>
               ))}
@@ -200,7 +220,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 onClick={onOpenCityManager}
                 title={lang === 'vi' ? 'Quản lý & Tạo thành phố mới' : 'Manage & Create cities'}
-                className="p-1 -ml-0.5 rounded-md text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition cursor-pointer flex items-center justify-center shrink-0"
+                className="p-1 -ml-0.5 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition cursor-pointer flex items-center justify-center shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -297,13 +317,13 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right: Speed Controls & Minimal 3-Dots Menu */}
       <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         {/* Speed Controls (Clean Segmented Pill) */}
-        <div className={`flex items-center rounded-lg p-0.5 border ${
-          isDark ? 'bg-[#2a2a2e] border-[#38383e]' : 'bg-slate-100 border-slate-200'
+        <div className={`flex items-center rounded-xl p-0.5 border ${
+          isDark ? 'bg-[#202023] border-[#38383e]' : 'bg-white border-[#E2E0D8]'
         }`}>
           <button
             onClick={() => onSetSpeed(gameSpeed === 0 ? 1 : 0)}
             title={gameSpeed === 0 ? (lang === 'vi' ? 'Tiếp tục' : 'Resume') : (lang === 'vi' ? 'Tạm dừng' : 'Pause')}
-            className={`p-1.5 rounded-md transition cursor-pointer ${
+            className={`p-1.5 rounded-lg transition cursor-pointer ${
               gameSpeed === 0 ? 'bg-amber-500 text-white font-bold shadow-xs' : 'opacity-60 hover:opacity-100'
             }`}
           >
@@ -316,7 +336,7 @@ export const Header: React.FC<HeaderProps> = ({
               const next = gameSpeed === 0 ? 1 : gameSpeed === 1 ? 2 : gameSpeed === 2 ? 3 : 1;
               onSetSpeed(next);
             }}
-            className="sm:hidden px-1.5 py-0.5 text-[11px] font-mono font-bold text-emerald-400 cursor-pointer"
+            className="sm:hidden px-1.5 py-0.5 text-[11px] font-mono font-bold text-[#3b82f6] cursor-pointer"
             title="Đổi tốc độ game"
           >
             {gameSpeed === 0 ? 'PAUSE' : `${gameSpeed}x`}
@@ -325,65 +345,44 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Desktop full buttons */}
           <button
             onClick={() => onSetSpeed(1)}
-            className={`hidden sm:block px-1.5 py-0.5 text-xs font-mono font-bold rounded transition cursor-pointer ${
-              gameSpeed === 1 ? 'bg-emerald-600 text-white shadow-sm' : 'opacity-70 hover:opacity-100'
+            className={`hidden sm:block px-2.5 py-0.5 text-xs font-mono font-bold rounded-lg transition cursor-pointer ${
+              gameSpeed === 1 ? 'bg-[#3b82f6] text-white shadow-sm' : 'opacity-70 hover:opacity-100'
             }`}
           >
             1x
           </button>
           <button
             onClick={() => onSetSpeed(2)}
-            className={`hidden sm:block px-1.5 py-0.5 text-xs font-mono font-bold rounded transition cursor-pointer ${
-              gameSpeed === 2 ? 'bg-emerald-600 text-white shadow-sm' : 'opacity-70 hover:opacity-100'
+            className={`hidden sm:block px-2.5 py-0.5 text-xs font-mono font-bold rounded-lg transition cursor-pointer ${
+              gameSpeed === 2 ? 'bg-[#3b82f6] text-white shadow-sm' : 'opacity-70 hover:opacity-100'
             }`}
           >
             2x
           </button>
           <button
             onClick={() => onSetSpeed(3)}
-            className={`hidden sm:block px-1.5 py-0.5 text-xs font-mono font-bold rounded transition cursor-pointer ${
-              gameSpeed === 3 ? 'bg-emerald-600 text-white shadow-sm' : 'opacity-70 hover:opacity-100'
+            className={`hidden sm:block px-2.5 py-0.5 text-xs font-mono font-bold rounded-lg transition cursor-pointer ${
+              gameSpeed === 3 ? 'bg-[#3b82f6] text-white shadow-sm' : 'opacity-70 hover:opacity-100'
             }`}
           >
             3x
           </button>
         </div>
 
-        {/* Track Style Quick Switch Button */}
-        {onToggleTrackStyle && (
-          <button
-            onClick={onToggleTrackStyle}
-            title={
-              lang === 'vi'
-                ? `Kiểu ray: ${
-                    trackStyle === 'curved'
-                      ? 'Đường cong mượt mà'
-                      : trackStyle === 'octolinear'
-                      ? 'Đường gấp khúc 45°'
-                      : 'Đường thẳng'
-                  } (Bấm để đổi)`
-                : `Track Style: ${trackStyle} (Click to switch)`
-            }
-            className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-              isDark
-                ? 'bg-slate-800/80 border-slate-700 hover:bg-slate-700 text-slate-300 hover:text-white'
-                : 'bg-neutral-100 border-neutral-300 hover:bg-neutral-200 text-slate-700'
-            }`}
-          >
-            {trackStyle === 'curved' ? (
-              <Spline className="w-3.5 h-3.5 text-cyan-400" />
-            ) : (
-              <Route className="w-3.5 h-3.5 text-emerald-500" />
-            )}
-            <span className="text-[11px] font-medium hidden lg:inline">
-              {trackStyle === 'curved'
-                ? (lang === 'vi' ? 'Ray cong mượt' : 'Curved')
-                : trackStyle === 'octolinear'
-                ? (lang === 'vi' ? 'Ray gấp khúc' : 'Octolinear')
-                : (lang === 'vi' ? 'Ray thẳng' : 'Straight')}
-            </span>
-          </button>
-        )}
+        {/* Shop Quick Button */}
+        <button
+          type="button"
+          onClick={onOpenShop}
+          title={lang === 'vi' ? 'Cửa hàng thiết bị (Shop)' : 'Equipment Shop'}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer shrink-0 ${
+            isDark
+              ? 'bg-[#202023] border-[#38383e] hover:border-emerald-500 text-emerald-400'
+              : 'bg-white border-[#E2E0D8] hover:border-emerald-600 text-emerald-700'
+          }`}
+        >
+          <ShoppingBag className="w-3.5 h-3.5" />
+          <span className="text-[11px] hidden lg:inline">{lang === 'vi' ? 'Cửa hàng' : 'Shop'}</span>
+        </button>
 
         {/* User Account / Cloud Sync Badge */}
         {onOpenAuth && (
@@ -458,26 +457,8 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Dropdown Menu Popover */}
           {isMenuOpen && (
             <div className={`absolute right-0 mt-2 w-64 max-w-[92vw] max-h-[80dvh] overflow-y-auto rounded-xl p-2 border shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-150 ${
-              isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-neutral-200 text-slate-900'
+              isDark ? 'bg-[#252528] border-[#38383e] text-neutral-100' : 'bg-[#FAF9F6] border-[#E2E0D8] text-neutral-900'
             }`}>
-              {/* Start Menu Portal */}
-              {onOpenStartMenu && (
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    onOpenStartMenu();
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-neutral-100 text-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <TrainIcon className="w-4 h-4 text-emerald-400" />
-                    <span>{lang === 'vi' ? 'Màn hình Menu chính' : 'Start Menu Portal'}</span>
-                  </div>
-                </button>
-              )}
-
               {/* City Manager & Creator */}
               {onOpenCityManager && (
                 <button
@@ -498,22 +479,6 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 </button>
               )}
-
-              {/* Shop / Depot */}
-              <button
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  onOpenShop();
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-neutral-100 text-slate-800'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <ShoppingBag className="w-4 h-4 text-emerald-400" />
-                  <span>{lang === 'vi' ? 'Cửa hàng thiết bị (Shop)' : 'Equipment Shop'}</span>
-                </div>
-              </button>
 
               {/* Sound Toggle */}
               <button

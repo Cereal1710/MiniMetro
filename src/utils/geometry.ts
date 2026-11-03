@@ -11,6 +11,24 @@ export function distance(p1: Point, p2: Point): number {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+/**
+ * Calculates shortest squared distance from point p to line segment vw
+ */
+export function distToSegmentSquared(p: Point, v: Point, w: Point): number {
+  const l2 = (v.x - w.x) ** 2 + (v.y - w.y) ** 2;
+  if (l2 === 0) return (p.x - v.x) ** 2 + (p.y - v.y) ** 2;
+  let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return (p.x - (v.x + t * (w.x - v.x))) ** 2 + (p.y - (v.y + t * (w.y - v.y))) ** 2;
+}
+
+/**
+ * Calculates shortest Euclidean distance from point p to line segment vw
+ */
+export function distToSegment(p: Point, v: Point, w: Point): number {
+  return Math.sqrt(distToSegmentSquared(p, v, w));
+}
+
 // Line segment intersection
 function ccw(A: Point, B: Point, C: Point) {
   return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);

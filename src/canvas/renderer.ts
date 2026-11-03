@@ -76,9 +76,12 @@ export interface RenderOptions {
   dragState: {
     isDragging: boolean;
     fromStationId: string | null;
+    toStationId?: string | null;
     currentPos: Point | null;
     targetStationId: string | null;
     lineId: string | null;
+    isSegmentSplit?: boolean;
+    segmentIndex?: number;
   } | null;
   hoveredStationId: string | null;
   selectedStationId?: string | null;
@@ -958,6 +961,52 @@ export function renderScene(
         const toPos = targetStation ? { x: targetStation.x, y: targetStation.y } : options.dragState.currentPos;
         const activeLine = lines.find(l => l.id === options.dragState?.lineId);
         const dragColor = activeLine ? activeLine.color : '#3B82F6';
+
+        // Segment Split mode: user grabbed existing segment between fromStation and toStation
+        if (options.dragState.isSegmentSplit && options.dragState.toStationId) {
+          const toStation = stationMap.get(options.dragState.toStationId);
+          if (toStation) {
+            const previewPts1 = generateTrackSegmentPoints(fromStation, toPos, trackStyle);
+            const previewPts2 = generateTrackSegmentPoints(toPos, toStation, trackStyle);
+
+            ctx.save();
+            ctx.strokeStyle = dragColor;
+            ctx.lineWidth = 5.5;
+            ctx.setLineDash([10, 6]);
+
+            // Draw segment 1: fromStation -> toPos
+            ctx.beginPath();
+            if (previewPts1.length > 0) {
+              ctx.moveTo(previewPts1[0].x, previewPts1[0].y);
+              for (let k = 1; k < previewPts1.length; k++) {
+                ctx.lineTo(previewPts1[k].x, previewPts1[k].y);
+              }
+            }
+            ctx.stroke();
+
+            // Draw segment 2: toPos -> toStation
+            ctx.beginPath();
+            if (previewPts2.length > 0) {
+              ctx.moveTo(previewPts2[0].x, previewPts2[0].y);
+              for (let k = 1; k < previewPts2.length; k++) {
+                ctx.lineTo(previewPts2[k].x, previewPts2[k].y);
+              }
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Magnet handle at toPos
+            ctx.fillStyle = dragColor;
+            ctx.beginPath();
+            ctx.arc(toPos.x, toPos.y, targetStation ? 16 : 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            ctx.restore();
+            return;
+          }
+        }
 
         const previewPts = generateTrackSegmentPoints(fromStation, toPos, trackStyle);
 

@@ -49,7 +49,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <button
           type="button"
           onClick={onRestart}
-          className="w-full flex items-center gap-3.5 px-6 py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] active:scale-98 text-white font-black text-base sm:text-lg tracking-wide shadow-xl transition-all cursor-pointer rounded-xs"
+          className="w-full flex items-center gap-3.5 px-6 py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] active:scale-98 text-white font-black text-base sm:text-lg tracking-wide shadow-xl transition-all cursor-pointer rounded-2xl"
         >
           <span className="text-xl sm:text-2xl font-mono leading-none">⬉</span>
           <span>{lang === 'vi' ? 'Chơi lại' : 'Restart'}</span>
@@ -59,7 +59,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <button
           type="button"
           onClick={onSwitchToEndless}
-          className="w-full flex items-center gap-3.5 px-6 py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] active:scale-98 text-white font-black text-base sm:text-lg tracking-wide shadow-xl transition-all cursor-pointer rounded-xs"
+          className="w-full flex items-center gap-3.5 px-6 py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] active:scale-98 text-white font-black text-base sm:text-lg tracking-wide shadow-xl transition-all cursor-pointer rounded-2xl"
         >
           <span className="text-xl sm:text-2xl font-mono leading-none">➜</span>
           <span>{lang === 'vi' ? 'Chế độ Vô tận (Endless)' : 'Continue in Endless'}</span>
@@ -69,7 +69,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <button
           type="button"
           onClick={onSwitchToCreative}
-          className="w-full flex items-center gap-3.5 px-6 py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] active:scale-98 text-white font-black text-base sm:text-lg tracking-wide shadow-xl transition-all cursor-pointer rounded-xs"
+          className="w-full flex items-center gap-3.5 px-6 py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] active:scale-98 text-white font-black text-base sm:text-lg tracking-wide shadow-xl transition-all cursor-pointer rounded-2xl"
         >
           <span className="text-xl sm:text-2xl font-mono leading-none">➜</span>
           <span>{lang === 'vi' ? 'Chế độ Sáng tạo (Creative)' : 'Continue in Creative Mode'}</span>
@@ -79,7 +79,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <button
           type="button"
           onClick={onOpenMenu}
-          className="w-full flex items-center gap-3.5 px-6 py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] active:scale-98 text-white font-black text-base sm:text-lg tracking-wide shadow-xl transition-all cursor-pointer rounded-xs"
+          className="w-full flex items-center gap-3.5 px-6 py-3.5 bg-[#3b82f6] hover:bg-[#2563eb] active:scale-98 text-white font-black text-base sm:text-lg tracking-wide shadow-xl transition-all cursor-pointer rounded-2xl"
         >
           <span className="text-xl sm:text-2xl font-mono leading-none">⬅</span>
           <span>{lang === 'vi' ? 'Menu chính' : 'Main Menu'}</span>

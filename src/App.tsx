@@ -30,7 +30,7 @@ import { renderScene, getTrainAtScreenPos } from './canvas/renderer';
 import { soundEngine } from './audio/soundEngine';
 import { Station, MetroLine, GameMode, Train, StationShape, WeatherType, WeatherState, UrbanIncident, CampaignState, InspectorState, BankLoan, UrbanSurgeEvent, DailyChallenge } from './types/game';
 import { CAMPAIGN_SCENARIOS } from './data/campaignScenarios';
-import { distance, Point, TrackRoutingStyle, computeLineColors } from './utils/geometry';
+import { distance, distToSegment, generateTrackSegmentPoints, Point, TrackRoutingStyle, computeLineColors } from './utils/geometry';
 import {
   auth,
   UserProfile,
@@ -44,9 +44,12 @@ import { onAuthStateChanged } from 'firebase/auth';
 interface DragState {
   isDragging: boolean;
   fromStationId: string | null;
+  toStationId?: string | null;
   currentPos: Point | null;
   targetStationId: string | null;
   lineId: string | null;
+  isSegmentSplit?: boolean;
+  segmentIndex?: number;
 }
 
 export interface CanvasViewport {
@@ -121,6 +124,82 @@ function findStationNearClient(
   return closest;
 }
 
+export interface NearbySegmentResult {
+  line: MetroLine;
+  fromStation: Station;
+  toStation: Station;
+  segmentIndex: number;
+  screenDist: number;
+}
+
+// Screen-space line segment picker: checks if client pointer is close to an existing visible route segment
+function findLineSegmentNearClient(
+  engine: MetroEngine,
+  vp: CanvasViewport,
+  clientX: number,
+  clientY: number,
+  trackStyle: TrackRoutingStyle = 'octolinear',
+  preferredLineId?: string | null,
+  screenTolerance = 38
+): NearbySegmentResult | null {
+  const { rect, scale, offsetX, offsetY, cameraZoom, panX, panY } = vp;
+  const totalScale = scale * cameraZoom;
+  const totalOffsetX = offsetX + panX;
+  const totalOffsetY = offsetY + panY;
+
+  const stationMap = new Map<string, Station>();
+  for (const s of engine.state.stations) {
+    stationMap.set(s.id, s);
+  }
+
+  let best: NearbySegmentResult | null = null;
+  let minDist = screenTolerance;
+
+  for (const line of engine.state.lines) {
+    const sIds = line.stationIds;
+    if (sIds.length < 2) continue;
+
+    const count = line.isLoop ? sIds.length : sIds.length - 1;
+    for (let i = 0; i < count; i++) {
+      const fromSt = stationMap.get(sIds[i]);
+      const toSt = stationMap.get(sIds[(i + 1) % sIds.length]);
+      if (!fromSt || !toSt) continue;
+
+      // Sample along the EXACT visible track geometry (bends, 45-degree angles, S-curves)
+      const trackPts = generateTrackSegmentPoints(fromSt, toSt, trackStyle);
+      const ptsLen = trackPts.length;
+
+      for (let k = 0; k < ptsLen - 1; k++) {
+        const p1Screen = {
+          x: rect.left + totalOffsetX + trackPts[k].x * totalScale,
+          y: rect.top + totalOffsetY + trackPts[k].y * totalScale
+        };
+        const p2Screen = {
+          x: rect.left + totalOffsetX + trackPts[k + 1].x * totalScale,
+          y: rect.top + totalOffsetY + trackPts[k + 1].y * totalScale
+        };
+
+        const d = distToSegment({ x: clientX, y: clientY }, p1Screen, p2Screen);
+        // Give selected line priority
+        const adjustedDist = (line.id === preferredLineId) ? d * 0.75 : d;
+
+        if (adjustedDist < minDist) {
+          minDist = adjustedDist;
+          best = {
+            line,
+            fromStation: fromSt,
+            toStation: toSt,
+            segmentIndex: i,
+            screenDist: d
+          };
+        }
+      }
+    }
+  }
+
+  return best;
+}
+
 export default function App() {
   // Game Settings & UI State
   const [lang, setLang] = useState<'vi' | 'en'>(() => {
@@ -147,7 +226,7 @@ export default function App() {
   });
   const [isShiftDown, setIsShiftDown] = useState(false);
 
-  const handleToggleTrackStyle = useCallback(() => {
+    const handleToggleTrackStyle = useCallback(() => {
     setTrackStyle(prev => {
       const next = prev === 'curved' ? 'octolinear' : prev === 'octolinear' ? 'straight' : 'curved';
       localStorage.setItem('mini_metro_track_style', next);
@@ -212,12 +291,21 @@ export default function App() {
   const dragStateRef = useRef<DragState>({
     isDragging: false,
     fromStationId: null,
+    toStationId: null,
     currentPos: null,
     targetStationId: null,
-    lineId: null
+    lineId: null,
+    isSegmentSplit: false,
+    segmentIndex: undefined
   });
   const hoveredStationRef = useRef<string | null>(null);
-  const mouseDownRef = useRef<{ clientX: number; clientY: number; time: number; stationId: string | null } | null>(null);
+  const mouseDownRef = useRef<{
+    clientX: number;
+    clientY: number;
+    time: number;
+    stationId: string | null;
+    segmentHit?: NearbySegmentResult | null;
+  } | null>(null);
   const lastStationClickRef = useRef<{ stationId: string; time: number } | null>(null);
   const singleClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Camera Zoom & Pan tracking
@@ -592,7 +680,7 @@ export default function App() {
             engine.serialize(),
             engine.state.stats.totalPassengersDelivered,
             engine.state.stats.totalDays
-          ).catch(() => { });
+          ).catch(() => {});
         }
       }
     }, 2500);
@@ -608,7 +696,7 @@ export default function App() {
             engine.serialize(),
             engine.state.stats.totalPassengersDelivered,
             engine.state.stats.totalDays
-          ).catch(() => { });
+          ).catch(() => {});
         }
       }
     };
@@ -624,7 +712,7 @@ export default function App() {
             engine.serialize(),
             engine.state.stats.totalPassengersDelivered,
             engine.state.stats.totalDays
-          ).catch(() => { });
+          ).catch(() => {});
         }
       }
     };
@@ -889,6 +977,7 @@ export default function App() {
               districts: engine.mapConfig.districts,
               inspectorState: engine.state.inspectorState,
               activeSurgeEvent: engine.state.activeSurgeEvent,
+              hasTransitAdContract: engine.state.stats?.hasTransitAdContract,
               isGameOver: engine.state.isGameOver,
               gameOverStationId: engine.state.gameOverStationId
             }
@@ -931,13 +1020,17 @@ export default function App() {
       return;
     }
 
-    const clickedStation = findStationNearClient(engine, vp, clientX, clientY, 45);
+    const clickedStation = findStationNearClient(engine, vp, clientX, clientY, 26);
+    const clickedSegment = !clickedStation
+      ? findLineSegmentNearClient(engine, vp, clientX, clientY, trackStyle, selectedLineId, 38)
+      : null;
 
     mouseDownRef.current = {
       clientX,
       clientY,
       time: performance.now(),
-      stationId: clickedStation ? clickedStation.id : null
+      stationId: clickedStation ? clickedStation.id : null,
+      segmentHit: clickedSegment ? { ...clickedSegment } : null
     };
 
     setHoveredTrain(null);
@@ -946,10 +1039,27 @@ export default function App() {
       dragStateRef.current = {
         isDragging: true,
         fromStationId: clickedStation.id,
+        toStationId: null,
         currentPos: worldPos,
         targetStationId: null,
-        lineId: selectedLineId
+        lineId: selectedLineId,
+        isSegmentSplit: false
       };
+      canvas.style.cursor = 'grabbing';
+    } else if (clickedSegment) {
+      const worldPos = clientToWorld(vp, clientX, clientY);
+      dragStateRef.current = {
+        isDragging: true,
+        fromStationId: clickedSegment.fromStation.id,
+        toStationId: clickedSegment.toStation.id,
+        currentPos: worldPos,
+        targetStationId: null,
+        lineId: clickedSegment.line.id,
+        isSegmentSplit: true,
+        segmentIndex: clickedSegment.segmentIndex
+      };
+      setSelectedLineId(clickedSegment.line.id);
+      canvas.style.cursor = 'grabbing';
     }
   };
 
@@ -966,9 +1076,16 @@ export default function App() {
     if (dragStateRef.current.isDragging) {
       setHoveredTrain(null);
       const fromId = dragStateRef.current.fromStationId;
-      const target = stationHover && stationHover.id !== fromId ? stationHover.id : null;
+      const toId = dragStateRef.current.toStationId;
+      const isSplit = dragStateRef.current.isSegmentSplit;
+
+      const target = stationHover && stationHover.id !== fromId && (!isSplit || stationHover.id !== toId)
+        ? stationHover.id
+        : null;
+
       dragStateRef.current.currentPos = clientToWorld(vp, clientX, clientY);
       dragStateRef.current.targetStationId = target;
+      canvas.style.cursor = 'grabbing';
     } else {
       // Check if mouse cursor is hovering over any train
       const trainHit = getTrainAtScreenPos(vp, clientX, clientY, 18);
@@ -976,6 +1093,20 @@ export default function App() {
         setHoveredTrain({ ...trainHit, clientX, clientY });
       } else {
         setHoveredTrain(null);
+      }
+
+      // Cursor styling for instant feedback
+      if (!isShiftDown && !isPanningRef.current && !isPlacingStation) {
+        if (stationHover) {
+          canvas.style.cursor = 'pointer';
+        } else {
+          const segHover = findLineSegmentNearClient(engine, vp, clientX, clientY, trackStyle, selectedLineId, 32);
+          if (segHover) {
+            canvas.style.cursor = 'grab';
+          } else {
+            canvas.style.cursor = 'crosshair';
+          }
+        }
       }
     }
   };
@@ -1033,11 +1164,11 @@ export default function App() {
             setUiSnapshot(prevSnapshot =>
               prevSnapshot
                 ? {
-                  ...prevSnapshot,
-                  lines: [...engine.state.lines],
-                  trains: [...engine.state.trains],
-                  inventory: { ...engine.state.inventory }
-                }
+                    ...prevSnapshot,
+                    lines: [...engine.state.lines],
+                    trains: [...engine.state.trains],
+                    inventory: { ...engine.state.inventory }
+                  }
                 : null
             );
           }
@@ -1070,7 +1201,44 @@ export default function App() {
         setSelectedLineId(null);
       }
     }
-    // CASE 2: Dragged to connect route (strictly ONLY when dragged >= 14 screen pixels from Station A to Station B)
+    // CASE 2: Dragged to split segment (grabbed line between Station A and Station C, dropped on Station B -> A - B - C)
+    else if (
+      dragStateRef.current.isDragging &&
+      dragStateRef.current.isSegmentSplit &&
+      dragStateRef.current.fromStationId &&
+      dragStateRef.current.toStationId &&
+      dragStateRef.current.lineId &&
+      moveDist >= 14
+    ) {
+      const fromId = dragStateRef.current.fromStationId;
+      const toId = dragStateRef.current.toStationId;
+      const targetStation = dragStateRef.current.targetStationId
+        ? engine.state.stations.find(s => s.id === dragStateRef.current.targetStationId)
+        : findStationNearClient(engine, viewportRef.current, clientX, clientY, 45);
+
+      if (targetStation && targetStation.id !== fromId && targetStation.id !== toId) {
+        const res = engine.insertStationIntoSegment(
+          dragStateRef.current.lineId,
+          fromId,
+          toId,
+          targetStation.id
+        );
+        if (res.success) {
+          syncSnapshot();
+          MetroEngine.saveToStorage(engine);
+          if (currentUser) {
+            saveCityToCloud(
+              currentUser.uid,
+              engine.mapConfig.id,
+              engine.serialize(),
+              engine.state.stats.totalPassengersDelivered,
+              engine.state.stats.totalDays
+            ).catch(() => {});
+          }
+        }
+      }
+    }
+    // CASE 3: Dragged to connect route (strictly ONLY when dragged >= 14 screen pixels from Station A to Station B)
     else if (dragStateRef.current.isDragging && dragStateRef.current.fromStationId && moveDist >= 14) {
       const fromId = dragStateRef.current.fromStationId;
       const targetStation = dragStateRef.current.targetStationId
@@ -1083,7 +1251,17 @@ export default function App() {
           targetStation.id,
           dragStateRef.current.lineId || selectedLineId
         );
-        // Do NOT automatically select the line: keeps user in control of line selection via bottom dock
+        syncSnapshot();
+        MetroEngine.saveToStorage(engine);
+        if (currentUser) {
+          saveCityToCloud(
+            currentUser.uid,
+            engine.mapConfig.id,
+            engine.serialize(),
+            engine.state.stats.totalPassengersDelivered,
+            engine.state.stats.totalDays
+          ).catch(() => {});
+        }
       }
     }
 
@@ -1091,9 +1269,11 @@ export default function App() {
     dragStateRef.current = {
       isDragging: false,
       fromStationId: null,
+      toStationId: null,
       currentPos: null,
       targetStationId: null,
-      lineId: null
+      lineId: null,
+      isSegmentSplit: false
     };
   };
 
@@ -1158,11 +1338,11 @@ export default function App() {
         setUiSnapshot(prev =>
           prev
             ? {
-              ...prev,
-              lines: [...engine.state.lines],
-              trains: [...engine.state.trains],
-              inventory: { ...engine.state.inventory }
-            }
+                ...prev,
+                lines: [...engine.state.lines],
+                trains: [...engine.state.trains],
+                inventory: { ...engine.state.inventory }
+              }
             : null
         );
       }
@@ -1247,10 +1427,13 @@ export default function App() {
         return;
       }
 
-      // Check if touching a station (generous 48px radius for finger touches)
-      const clickedStation = findStationNearClient(engine, vp, clientX, clientY, 48);
+      // Check if touching a station or a line segment
+      const clickedStation = findStationNearClient(engine, vp, clientX, clientY, 30);
+      const clickedSegment = !clickedStation
+        ? findLineSegmentNearClient(engine, vp, clientX, clientY, trackStyle, selectedLineId, 44)
+        : null;
 
-      if (clickedStation) {
+      if (clickedStation || clickedSegment) {
         touchStateRef.current = {
           mode: 'route',
           startX: clientX,
@@ -1475,6 +1658,14 @@ export default function App() {
     syncSnapshot();
   }, [syncSnapshot]);
 
+  const handleRenameLine = useCallback((lineId: string, newName: string) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.renameLine(lineId, newName)) {
+      syncSnapshot();
+    }
+  }, [syncSnapshot]);
+
   const handleRepairTrain = useCallback((trainId: string) => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -1488,6 +1679,40 @@ export default function App() {
     engine.deployStationSecurity(stationId);
     syncSnapshot();
   }, [syncSnapshot]);
+
+  const handleToggleCBTC = useCallback((lineId: string) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.toggleLineCBTC(lineId)) {
+      syncSnapshot();
+    }
+  }, [syncSnapshot]);
+
+  const handleUpgradeStationSmartIC = useCallback((stationId: string) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.upgradeStationSmartIC(stationId)) {
+      syncSnapshot();
+    }
+  }, [syncSnapshot]);
+
+  const handleBuyTransitAdContract = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.toggleTransitAdContract()) {
+      syncSnapshot();
+      MetroEngine.saveToStorage(engine);
+      if (currentUser) {
+        saveCityToCloud(
+          currentUser.uid,
+          engine.mapConfig.id,
+          engine.serialize(),
+          engine.state.stats.totalPassengersDelivered,
+          engine.state.stats.totalDays
+        ).catch(() => {});
+      }
+    }
+  }, [syncSnapshot, currentUser]);
 
   const handleToggleDisableIncidents = useCallback(() => {
     const engine = engineRef.current;
@@ -1592,8 +1817,9 @@ export default function App() {
   const state = uiSnapshot || engine?.state;
 
   return (
-    <div className={`w-screen h-dvh flex flex-col overflow-hidden select-none ${theme === 'dark' ? 'bg-[#252528] text-slate-100' : 'bg-neutral-100 text-slate-900'
-      }`}>
+    <div className={`w-screen h-dvh flex flex-col overflow-hidden select-none ${
+      theme === 'dark' ? 'bg-[#252528] text-slate-100' : 'bg-neutral-100 text-slate-900'
+    }`}>
       {/* Top Header Bar */}
       {state && !state.isGameOver && (
         <Header
@@ -1713,6 +1939,7 @@ export default function App() {
             onOpenShop={() => setIsShopModalOpen(true)}
             onOpenLineSettings={(line) => setEditingSettingsLine(line)}
             onToggleLineDepot={handleToggleLineDepot}
+            onRenameLine={handleRenameLine}
           />
         )}
 
@@ -1727,14 +1954,15 @@ export default function App() {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className={`w-full h-full block touch-none select-none ${isPanningRef.current
+            className={`w-full h-full block touch-none select-none ${
+              isPanningRef.current
                 ? 'cursor-grabbing'
                 : isShiftDown
-                  ? 'cursor-grab'
-                  : isPlacingStation
-                    ? 'cursor-cell'
-                    : 'cursor-crosshair'
-              }`}
+                ? 'cursor-grab'
+                : isPlacingStation
+                ? 'cursor-cell'
+                : 'cursor-crosshair'
+            }`}
           />
 
           {/* Top-Left Map Cards Dock: Passenger Analytics, City Weather (Collapsible vertically) */}
@@ -1804,6 +2032,7 @@ export default function App() {
               onOpenShop={() => setIsShopModalOpen(true)}
               onOpenBank={() => setIsBankModalOpen(true)}
               onToggleCreative={() => setIsCreativeToolbarOpen(prev => !prev)}
+              onRenameLine={handleRenameLine}
             />
           )}
 
@@ -1818,13 +2047,15 @@ export default function App() {
             )}
 
             {/* Zoom Controls (Sleek Frosted Glass Pill) */}
-            <div className={`flex items-center rounded-xl p-1 border shadow-lg backdrop-blur-xl gap-0.5 ${theme === 'dark' ? 'bg-slate-950/80 border-slate-800 text-slate-200' : 'bg-white/90 border-slate-200 text-slate-800'
-              }`}>
+            <div className={`flex items-center rounded-xl p-1 border shadow-lg backdrop-blur-xl gap-0.5 ${
+              theme === 'dark' ? 'bg-slate-950/80 border-slate-800 text-slate-200' : 'bg-white/90 border-slate-200 text-slate-800'
+            }`}>
               <button
                 onClick={handleZoomOut}
                 title={lang === 'vi' ? 'Thu nhỏ bản đồ' : 'Zoom Out'}
-                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-600'
-                  }`}
+                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${
+                  theme === 'dark' ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-600'
+                }`}
               >
                 <ZoomOut className="w-3.5 h-3.5" />
               </button>
@@ -1832,8 +2063,9 @@ export default function App() {
               <button
                 onClick={handleResetCamera}
                 title={lang === 'vi' ? 'Đặt lại 100% (Giữ Shift + cuộn để zoom)' : 'Reset 100%'}
-                className={`px-2 py-0.5 rounded-md text-xs font-mono font-bold transition cursor-pointer ${theme === 'dark' ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-100 text-emerald-600'
-                  }`}
+                className={`px-2 py-0.5 rounded-md text-xs font-mono font-bold transition cursor-pointer ${
+                  theme === 'dark' ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-100 text-emerald-600'
+                }`}
               >
                 {zoomPercent}%
               </button>
@@ -1841,8 +2073,9 @@ export default function App() {
               <button
                 onClick={handleZoomIn}
                 title={lang === 'vi' ? 'Phóng to bản đồ' : 'Zoom In'}
-                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-600'
-                  }`}
+                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${
+                  theme === 'dark' ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-600'
+                }`}
               >
                 <ZoomIn className="w-3.5 h-3.5" />
               </button>
@@ -1852,8 +2085,9 @@ export default function App() {
               <button
                 onClick={handleResetCamera}
                 title={lang === 'vi' ? 'Căn giữa bản đồ' : 'Fit Map'}
-                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${theme === 'dark' ? 'hover:bg-slate-800 text-cyan-400 hover:text-cyan-300' : 'hover:bg-slate-100 text-cyan-600'
-                  }`}
+                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ${
+                  theme === 'dark' ? 'hover:bg-slate-800 text-cyan-400 hover:text-cyan-300' : 'hover:bg-slate-100 text-cyan-600'
+                }`}
               >
                 <Maximize2 className="w-3.5 h-3.5" />
               </button>
@@ -1892,10 +2126,11 @@ export default function App() {
                       type="button"
                       onClick={() => setPlacingShape(shape)}
                       title={`Hình ${shape}`}
-                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-sm flex items-center justify-center font-bold transition cursor-pointer active:scale-95 touch-manipulation ${isSel
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-sm flex items-center justify-center font-bold transition cursor-pointer active:scale-95 touch-manipulation ${
+                        isSel
                           ? 'bg-emerald-500 text-slate-950 ring-2 ring-emerald-300 shadow-md scale-105'
                           : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
-                        }`}
+                      }`}
                     >
                       {glyphs[shape]}
                     </button>
@@ -1947,10 +2182,27 @@ export default function App() {
               high_speed: {
                 label: 'High Speed',
                 speedLabel: '+80%',
-                badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                badgeBg: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
                 icon: '🚅'
+              },
+              double_decker: {
+                label: 'Tàu 2 Tầng',
+                speedLabel: '+20% (2x Chỗ)',
+                badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+                icon: '🏢'
+              },
+              feeder_bus: {
+                label: 'Buýt BRT',
+                speedLabel: '-10% (0.90x)',
+                badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                icon: '🚌'
               }
-            }[lineType];
+            }[lineType] || {
+              label: 'Metro',
+              speedLabel: '1.0x',
+              badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+              icon: '🚇'
+            };
 
             return (
               <div
@@ -2044,6 +2296,9 @@ export default function App() {
           lang={lang}
           onClose={() => setEditingSettingsLine(null)}
           onSave={handleSaveLineSettings}
+          onRenameLine={handleRenameLine}
+          onToggleCBTC={handleToggleCBTC}
+          onUpgradeStationSmartIC={handleUpgradeStationSmartIC}
         />
       )}
 
@@ -2078,18 +2333,19 @@ export default function App() {
         <ShopModal
           money={state.money}
           inventory={state.inventory}
-          activeLinesCount={state.lines.length}
+          activeLinesCount={state.lines.filter(l => l.type !== 'feeder_bus' && l.type !== 'double_decker').length}
           totalTrainsCount={state.trains.length + state.inventory.unassignedTrains}
           theme={theme}
           lang={lang}
           onClose={() => setIsShopModalOpen(false)}
-          onBuyTrain={() => { engine?.buyTrain(); syncSnapshot(); }}
-          onBuyCarriage={() => { engine?.buyCarriage(); syncSnapshot(); }}
-          onBuyLine={() => { engine?.buyLine(); syncSnapshot(); }}
-          onBuyInterchange={() => { engine?.buyInterchangeUpgrade(); syncSnapshot(); }}
-          onBuyTunnel={() => { engine?.buyTunnel(); syncSnapshot(); }}
-          onBuyDoubleDecker={() => { engine?.buyDoubleDeckerTrain(); syncSnapshot(); }}
-          onBuyFeederBus={() => { engine?.buyFeederBus(); syncSnapshot(); }}
+          onBuyTrain={() => { engine?.buyTrain(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
+          onBuyCarriage={() => { engine?.buyCarriage(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
+          onBuyLine={() => { engine?.buyLine(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
+          onBuyInterchange={() => { engine?.buyInterchangeUpgrade(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
+          onBuyTunnel={() => { engine?.buyTunnel(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
+          hasTransitAdContract={state.stats?.hasTransitAdContract}
+          transitAdDaysRemaining={state.stats?.transitAdDaysRemaining}
+          onBuyTransitAdContract={handleBuyTransitAdContract}
         />
       )}
 
@@ -2294,16 +2550,16 @@ export default function App() {
         }}
         onSelectShape={(shape) => setPlacingShape(shape)}
         onChangeStationName={(name) => setCustomStationName(name)}
-        onRandomizeStationName={() => { }}
+        onRandomizeStationName={() => {}}
         onSpawnRandomStation={() => {
           if (engine) {
             engine.spawnStation();
             syncSnapshot();
           }
         }}
-        onFinishRiverDrawing={() => { }}
-        onClearAllRivers={() => { }}
-        onResetRivers={() => { }}
+        onFinishRiverDrawing={() => {}}
+        onClearAllRivers={() => {}}
+        onResetRivers={() => {}}
         onAddQuickLine={() => {
           if (engine) {
             engine.state.inventory.availableLines++;

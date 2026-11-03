@@ -16,8 +16,9 @@ interface ShopModalProps {
   onBuyLine: () => void;
   onBuyInterchange: () => void;
   onBuyTunnel?: () => void;
-  onBuyDoubleDecker?: () => void;
-  onBuyFeederBus?: () => void;
+  hasTransitAdContract?: boolean;
+  transitAdDaysRemaining?: number;
+  onBuyTransitAdContract?: () => void;
 }
 
 export const ShopModal: React.FC<ShopModalProps> = ({
@@ -33,8 +34,9 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   onBuyLine,
   onBuyInterchange,
   onBuyTunnel,
-  onBuyDoubleDecker,
-  onBuyFeederBus
+  hasTransitAdContract,
+  transitAdDaysRemaining,
+  onBuyTransitAdContract
 }) => {
   const isDark = theme === 'dark';
 
@@ -43,8 +45,6 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   const lineCost = 3000;
   const interchangeCost = 350;
   const tunnelCost = 300;
-  const doubleDeckerCost = 800;
-  const feederBusCost = 350;
 
   const items = [
     {
@@ -63,7 +63,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
         </svg>
       ),
       canBuy: money >= tunnelCost && !!onBuyTunnel,
-      action: onBuyTunnel || (() => { }),
+      action: onBuyTunnel || (() => {}),
       currentCount: inventory.tunnelTokens,
       countLabelVi: 'Có sẵn',
       countLabelEn: 'Available'
@@ -82,43 +82,10 @@ export const ShopModal: React.FC<ShopModalProps> = ({
       countLabelEn: 'Depot'
     },
     {
-      titleVi: 'Tàu Hai Tầng (2x Sức chứa)',
-      titleEn: 'Double-Decker Metro Train',
-      descVi: 'Tàu 2 tầng chở gấp đôi hành khách (12 chỗ cơ bản, 8 chỗ mỗi toa), giải tỏa quá tải.',
-      descEn: 'Double-capacity train (12 base slots, 8 per carriage) to clear crowded lines.',
-      cost: doubleDeckerCost,
-      icon: (
-        <div className="w-5 h-5 flex flex-col justify-between py-0.5 text-blue-400">
-          <div className="w-full h-1.5 rounded-xs border border-current bg-blue-400/30" />
-          <div className="w-full h-1.5 rounded-xs border border-current bg-blue-400/30" />
-        </div>
-      ),
-      canBuy: money >= doubleDeckerCost && !!onBuyDoubleDecker,
-      action: onBuyDoubleDecker || (() => { }),
-      currentCount: inventory.doubleDeckerTrains || 0,
-      countLabelVi: 'Thẻ sẵn sàng',
-      countLabelEn: 'Tokens'
-    },
-    {
-      titleVi: 'Tuyến Buýt Nhanh BRT (Qua cầu miễn phí)',
-      titleEn: 'Feeder BRT Bus Route',
-      descVi: 'Mở thêm tuyến xe buýt trung chuyển, qua cầu đường bộ vượt sông MIỄN PHÍ không tốn Hầm.',
-      descEn: 'Add feeder bus route crossing road bridges across rivers with ZERO tunnel tokens required.',
-      cost: feederBusCost,
-      icon: (
-        <span className="text-base leading-none">🚌</span>
-      ),
-      canBuy: money >= feederBusCost && !!onBuyFeederBus,
-      action: onBuyFeederBus || (() => { }),
-      currentCount: inventory.feederBuses || 0,
-      countLabelVi: 'Đã mở',
-      countLabelEn: 'Unlocked'
-    },
-    {
-      titleVi: 'Toa Chở Khách Phụ',
-      titleEn: 'Carriage Extension',
-      descVi: 'Gắn thêm toa vào đoàn tàu hiện có (+4 sức chứa khách mỗi toa).',
-      descEn: 'Attach extra carriage to an active train (+4 passenger capacity).',
+      titleVi: 'Toa Chở Khách Tiêu Chuẩn',
+      titleEn: 'Standard Carriage Extension',
+      descVi: 'Gắn thêm toa vào đoàn tàu thường hoặc 2 tầng (+4 chỗ tàu thường, +8 chỗ tàu 2 tầng).',
+      descEn: 'Attach extra carriage to trains (+4 capacity for standard, +8 for double-decker).',
       cost: carriageCost,
       icon: <Layers className="w-5 h-5 text-indigo-400" />,
       canBuy: money >= carriageCost,
@@ -139,13 +106,29 @@ export const ShopModal: React.FC<ShopModalProps> = ({
       currentCount: `${activeLinesCount}/${inventory.availableLines}`,
       countLabelVi: 'Đang dùng',
       countLabelEn: 'Active'
+    },
+    {
+      titleVi: 'Hợp Đồng Quảng Cáo Thân Tàu (1 Tuần)',
+      titleEn: 'Transit Advertising Contract (1 Week)',
+      descVi: 'Hợp đồng 7 ngày (1 tuần). Thu nhập thụ động $200/ngày cho mỗi toa tàu (hiển thị dải sơn xanh da trời ở 2 bên thân tàu).',
+      descEn: '7-day deal earning $200/day passive revenue for every active train car (features sky blue livery on both flanks).',
+      cost: 2000,
+      icon: <span className="text-base leading-none">📰</span>,
+      canBuy: money >= 2000 && !!onBuyTransitAdContract,
+      action: onBuyTransitAdContract || (() => {}),
+      currentCount: hasTransitAdContract
+        ? (lang === 'vi' ? `Còn ${transitAdDaysRemaining || 7} ngày` : `${transitAdDaysRemaining || 7} days left`)
+        : (lang === 'vi' ? 'Chưa kích hoạt' : 'Inactive'),
+      countLabelVi: hasTransitAdContract ? 'Thời hạn' : 'Trạng thái',
+      countLabelEn: hasTransitAdContract ? 'Duration' : 'Status'
     }
   ];
 
   return (
     <div className="fixed inset-0 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-      <div className={`w-full max-w-xl max-h-[90dvh] overflow-y-auto overflow-x-hidden rounded-2xl p-4 sm:p-6 md:p-7 border shadow-2xl relative scrollbar-thin ${isDark ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white border-neutral-200 text-neutral-900'
-        }`}>
+      <div className={`w-full max-w-xl max-h-[90dvh] overflow-y-auto overflow-x-hidden rounded-2xl p-4 sm:p-6 md:p-7 border shadow-2xl relative scrollbar-thin ${
+        isDark ? 'bg-neutral-900 border-neutral-800 text-neutral-100' : 'bg-white border-neutral-200 text-neutral-900'
+      }`}>
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -185,8 +168,9 @@ export const ShopModal: React.FC<ShopModalProps> = ({
           {items.map((item, idx) => (
             <div
               key={idx}
-              className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 transition ${isDark ? 'bg-neutral-800/50 border-neutral-700/80' : 'bg-neutral-50 border-neutral-200'
-                }`}
+              className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 transition ${
+                isDark ? 'bg-neutral-800/50 border-neutral-700/80' : 'bg-neutral-50 border-neutral-200'
+              }`}
             >
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-neutral-700/30">
@@ -211,10 +195,11 @@ export const ShopModal: React.FC<ShopModalProps> = ({
               <button
                 onClick={item.action}
                 disabled={!item.canBuy}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shadow-sm ${item.canBuy
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap shadow-sm ${
+                  item.canBuy
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer active:scale-95'
                     : 'bg-neutral-700/40 text-neutral-400 cursor-not-allowed opacity-50'
-                  }`}
+                }`}
               >
                 <span>{formatMoney(item.cost)}</span>
                 <ArrowRight className="w-3.5 h-3.5" />

@@ -62,7 +62,9 @@ export const DAY_NAMES_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 export function getLineSpeedMultiplier(type?: MetroLineType): number {
   switch (type) {
     case 'feeder_bus':
-      return 0.90; // Agile city BRT bus
+      return 0.90; // Agile city BRT bus (10% slower than metro)
+    case 'double_decker':
+      return 1.20; // Double-decker train (speed same as intercity: +20%)
     case 'intercity':
       return 1.20; // +20% faster than metro
     case 'high_speed':
@@ -71,6 +73,36 @@ export function getLineSpeedMultiplier(type?: MetroLineType): number {
     default:
       return 1.0; // standard metro speed
   }
+}
+
+export function getTrainRouteCoordinate(train: Train, totalSegments: number, isLoop: boolean): number {
+  const p = Math.max(0, Math.min(1, train.progress ?? 0));
+  const seg = Math.max(0, Math.min(totalSegments - 1, train.segmentIndex ?? 0));
+  if (isLoop) {
+    if (train.direction === 1) {
+      return seg + p;
+    } else {
+      return ((seg - p) % totalSegments + totalSegments) % totalSegments;
+    }
+  } else {
+    if (train.direction === 1) {
+      return seg + p;
+    } else {
+      return totalSegments + (totalSegments - 1 - seg) + p;
+    }
+  }
+}
+
+export function getHeadwayDistanceAhead(
+  train: Train,
+  otherTrain: Train,
+  totalSegments: number,
+  isLoop: boolean
+): number {
+  const L = isLoop ? totalSegments : 2 * totalSegments;
+  const posA = getTrainRouteCoordinate(train, totalSegments, isLoop);
+  const posB = getTrainRouteCoordinate(otherTrain, totalSegments, isLoop);
+  return (posB - posA + L) % L;
 }
 
 export class MetroEngine {
@@ -86,6 +118,7 @@ export class MetroEngine {
   private returnCommuterQueue: { originStationId: string; targetShape: StationShape; readyHour: number }[] = [];
   public maintenanceProtectedToday: boolean = false;
   private nightMaintenanceAnnouncedToday: boolean = false;
+  public activeExpoStationId: string | null = null;
 
   public toggleUnlimitedMode() {
     this.isUnlimitedMode = !this.isUnlimitedMode;
@@ -135,6 +168,7 @@ export class MetroEngine {
         interchangeTokens: 1,
         tunnelTokens: 2,
         doubleDeckerTrains: 0,
+        doubleDeckerCarriages: 0,
         feederBuses: 1
       },
       stats: {
@@ -152,7 +186,12 @@ export class MetroEngine {
         weeklyPassRevenueTotal: 0,
         distanceFareRevenueTotal: 0,
         luggageFareRevenueTotal: 0,
-        nightMaintenanceCount: 0
+        nightMaintenanceCount: 0,
+        hasTransitAdContract: false,
+        transitAdDaysRemaining: 0,
+        totalAdRevenue: 0,
+        totalTouristTips: 0,
+        expoEventsCompleted: 0
       },
       money: 200000,
       timeOfDayHours: 7.0, // starts at 07:00 AM
@@ -354,6 +393,7 @@ export class MetroEngine {
 
     if (this.state.timeOfDayHours >= 24) {
       this.state.timeOfDayHours -= 24;
+      this.maintenanceProtectedToday = false;
       const finishedDayIndex = this.state.currentDayIndex;
       const dayNameVi = DAY_NAMES_VI[finishedDayIndex] || `Ngày ${this.state.stats.totalDays}`;
       const dayNameEn = DAY_NAMES_EN[finishedDayIndex] || `Day ${this.state.stats.totalDays}`;
@@ -399,6 +439,48 @@ export class MetroEngine {
       // Operating cost deduction at midnight ($20 per active train, $10 per line)
       const dailyCost = this.state.trains.length * 20 + this.state.lines.length * 10;
       this.state.money = Math.max(0, this.state.money - dailyCost);
+
+      // Feature 19: Doanh thu quảng cáo thân tàu ($200/ngày cho mỗi toa tàu đang vận hành, mua theo tuần)
+      if (this.state.stats.hasTransitAdContract && (this.state.stats.transitAdDaysRemaining || 0) > 0) {
+        const totalCars = this.state.trains.reduce((sum, t) => sum + 1 + (t.carriagesCount || 0), 0);
+        const adPayout = totalCars * 200;
+        this.state.money += adPayout;
+        this.state.stats.totalAdRevenue = (this.state.stats.totalAdRevenue || 0) + adPayout;
+        this.state.stats.transitAdDaysRemaining = Math.max(0, (this.state.stats.transitAdDaysRemaining || 0) - 1);
+
+        if (this.state.stats.transitAdDaysRemaining === 0) {
+          this.state.stats.hasTransitAdContract = false;
+          this.addFloatingText(740, 480, `📰 +$${adPayout.toLocaleString()} QC Thân tàu • Hợp đồng tuần ĐÃ HẾT HẠN!`, '#F59E0B');
+          soundEngine.playDisconnect();
+        } else {
+          this.addFloatingText(740, 480, `📰 +$${adPayout.toLocaleString()} QC Thân tàu (${totalCars} toa • Còn ${this.state.stats.transitAdDaysRemaining} ngày)`, '#0EA5E9');
+        }
+      } else {
+        this.state.stats.hasTransitAdContract = false;
+        this.state.stats.transitAdDaysRemaining = 0;
+      }
+
+      // Feature 28: Đếm ngược tuần lễ Expo & Thưởng hoàn thành
+      if (this.activeExpoStationId) {
+        const expoSt = this.state.stations.find(s => s.id === this.activeExpoStationId);
+        if (expoSt) {
+          expoSt.expoRemainingDays = Math.max(0, (expoSt.expoRemainingDays || 7) - 1);
+          if (expoSt.expoRemainingDays === 0) {
+            const reward = 15000;
+            this.state.money += reward;
+            this.state.stats.expoEventsCompleted = (this.state.stats.expoEventsCompleted || 0) + 1;
+            soundEngine.playFanfare();
+            this.addFloatingText(740, 400, `🏆 THÀNH CÔNG TUẦN LỄ EXPO! +$${reward.toLocaleString()} TÀI TRỢ`, '#F59E0B');
+            expoSt.isExpoCentre = false;
+            this.activeExpoStationId = null;
+          }
+        } else {
+          this.activeExpoStationId = null;
+        }
+      } else if (this.state.stats.totalDays % 14 === 2 && this.state.stations.length >= 4) {
+        // Kích hoạt tuần lễ Expo định kỳ mỗi 2 tuần một lần
+        this.triggerExpoWeek();
+      }
 
       // Sunday midnight: trigger Weekly Upgrade Grant & Loans/Satisfaction bonus & Weekly Pass Payout!
       if (this.state.currentDayIndex === 0) {
@@ -531,10 +613,11 @@ export class MetroEngine {
     const spawnMultiplier = rushMultiplier * weatherSpawnMultiplier;
 
     for (const station of this.state.stations) {
-      // Chance per second to spawn a passenger at this station
-      const spawnRate = (0.07 + Math.random() * 0.05) * spawnMultiplier;
+      // Chance per second to spawn a passenger at this station (3x higher if station is Expo Centre!)
+      const expoMult = station.isExpoCentre ? 3.2 : 1.0;
+      const spawnRate = (0.07 + Math.random() * 0.05) * spawnMultiplier * expoMult;
       if (Math.random() < spawnRate * simDt) {
-        if (station.passengers.length < station.maxCapacity + 4) {
+        if (station.passengers.length < station.maxCapacity + (station.isExpoCentre ? 8 : 4)) {
           // Choose a target shape distinct from current station shape
           const candidateShapes = existingShapes.filter(sh => sh !== station.shape);
           if (candidateShapes.length > 0) {
@@ -562,25 +645,54 @@ export class MetroEngine {
 
             const targetShape = shapePool[Math.floor(Math.random() * shapePool.length)];
 
-            // Feature 19: Khách mang vali (Airport Luggage Passengers)
+            // Feature 13: Học sinh & Sinh viên (Giờ tan trường 11:30-12:30 & 16:30-17:30 tại ga Square)
+            const isSchoolDismissal = (h >= 11.4 && h <= 12.6) || (h >= 16.4 && h <= 17.6);
+            const isSchoolOrigin = station.shape === 'square';
+            const isStudent = isSchoolDismissal && isSchoolOrigin && Math.random() < 0.65;
+
+            // Feature 14: Du khách quốc tế mang máy ảnh / bản đồ (10% khách)
+            const isTourist = !isStudent && (targetShape === 'star' || targetShape === 'diamond' || Math.random() < 0.12);
+
+            // Feature 19 (cũ): Khách mang vali (Airport Luggage Passengers)
             const isAirportRelated = station.specialHubType === 'airport' || targetShape === 'star';
-            const hasLuggage = isAirportRelated ? Math.random() < 0.45 : Math.random() < 0.12;
+            const hasLuggage = !isStudent && (isAirportRelated ? Math.random() < 0.45 : Math.random() < 0.12);
 
             // Feature 12: 80% cư dân dùng vé tháng ($1400/tuần/người), 20% vé lẻ ($2/ga)
-            const isMonthlyPassHolder = Math.random() < 0.80;
+            const isMonthlyPassHolder = isStudent ? true : Math.random() < 0.80;
+
+            const finalTargetShape = isStudent ? (candidateShapes.includes('circle') ? 'circle' : targetShape) : targetShape;
 
             const passenger: Passenger = {
               id: `p-${this.passengerIdCounter++}`,
-              targetShape,
+              targetShape: finalTargetShape,
               spawnTime: Date.now(),
               stationId: station.id,
               hasLuggage,
               isMonthlyPassHolder,
               stationsTraveled: 0,
               commuterHomeStationId: station.shape === 'circle' ? station.id : undefined,
-              isReturnTrip: isAfternoon && targetShape === 'circle'
+              isReturnTrip: isAfternoon && targetShape === 'circle',
+              isStudent,
+              isTourist,
+              transferCount: 0
             };
             station.passengers.push(passenger);
+
+            // Feature 13: Học sinh đi thành nhóm bạn 2-3 người cùng về nhà!
+            if (isStudent && Math.random() < 0.55 && station.passengers.length < station.maxCapacity + 3) {
+              station.passengers.push({
+                id: `p-student-buddy-${this.passengerIdCounter++}`,
+                targetShape: finalTargetShape,
+                spawnTime: Date.now(),
+                stationId: station.id,
+                hasLuggage: false,
+                isMonthlyPassHolder: true,
+                stationsTraveled: 0,
+                isStudent: true,
+                isTourist: false,
+                transferCount: 0
+              });
+            }
           }
         }
       }
@@ -629,9 +741,6 @@ export class MetroEngine {
             dwellingTime: 0,
             isDockedAtDepot: false
           });
-        } else if (!line.isDepotRecalled && trainsOnLine.every(t => t.isDockedAtDepot)) {
-          trainsOnLine[0].isDockedAtDepot = false;
-          trainsOnLine[0].dwellingTime = 0;
         }
       }
     }
@@ -769,18 +878,46 @@ export class MetroEngine {
         };
       }
 
-      // Check headway safety distance on same segment: gentle slow down (never freeze trains!)
-      let headwayMultiplier = 1.0;
-      for (const otherTrain of this.state.trains) {
-        if (otherTrain.id === train.id || otherTrain.lineId !== line.id) continue;
-        if (otherTrain.isDockedAtDepot) continue;
+      // Dynamic Headway Regulation along continuous route (prevents train bunching & tail-gating)
+      const trainsOnLine = this.state.trains.filter(t => t.lineId === line.id && !t.isDockedAtDepot);
+      const L = line.isLoop ? totalSegments : 2 * totalSegments;
+      const idealSpacing = L / Math.max(1, trainsOnLine.length);
 
-        if (otherTrain.segmentIndex === train.segmentIndex && otherTrain.direction === train.direction) {
-          const diff = otherTrain.progress - train.progress;
-          if (diff > 0.02 && diff < 0.20) {
-            headwayMultiplier = 0.65;
-            break;
+      let minGapAhead = L;
+      let leadTrain: Train | null = null;
+      for (const otherTrain of trainsOnLine) {
+        if (otherTrain.id === train.id) continue;
+        const gap = getHeadwayDistanceAhead(train, otherTrain, totalSegments, line.isLoop);
+        if (gap > 0.001 && gap < minGapAhead) {
+          minGapAhead = gap;
+          leadTrain = otherTrain;
+        }
+      }
+
+      // Safe headway buffers:
+      // Minimum visual buffer: ~0.38 segments (trains cannot tailgate or overlap!)
+      // Feature 2: With CBTC driverless automation, safe gap is reduced to 0.18 segments!
+      train.isCBTC = !!line.hasCBTC;
+      const minSafeGap = line.hasCBTC ? 0.18 : 0.38;
+      const normalGap = line.hasCBTC ? Math.max(0.40, idealSpacing * 0.45) : Math.max(0.75, idealSpacing * 0.70);
+
+      let headwayMultiplier = 1.0;
+      if (trainsOnLine.length > 1 && leadTrain) {
+        if (minGapAhead < minSafeGap) {
+          // Dangerous close-tailgating!
+          if (leadTrain.dwellingTime > 0) {
+            // Lead train is stopped at station: trailing train halts safely outside the station
+            headwayMultiplier = 0.0;
+          } else {
+            // Lead train is moving: trailing train crawls cautiously until gap widens
+            headwayMultiplier = Math.max(0.12, (minGapAhead / minSafeGap) * 0.45);
           }
+        } else if (minGapAhead < normalGap) {
+          // Approaching comfort zone: gentle deceleration to restore spacing
+          const ratio = (minGapAhead - minSafeGap) / (normalGap - minSafeGap);
+          headwayMultiplier = 0.45 + 0.55 * ratio;
+        } else {
+          headwayMultiplier = 1.0;
         }
       }
 
@@ -809,9 +946,13 @@ export class MetroEngine {
         accelDecelMultiplier = 0.40 + 0.60 * Math.sin(t * (Math.PI / 2));
       }
 
-      // Calculate speed with guaranteed minimum velocity so trains NEVER crawl to a halt outside stations
+      // Calculate speed with headway regulation (stops cleanly if headwayMultiplier === 0)
       let finalSpeed = baseSpeed * 0.90 * typeMultiplier * weatherSpeedMultiplier * depotRecallSpeedMultiplier * accelDecelMultiplier * headwayMultiplier;
-      finalSpeed = Math.max(40, finalSpeed); // Minimum 40 px/s ensures brisk, continuous movement
+      if (headwayMultiplier === 0) {
+        finalSpeed = 0;
+      } else {
+        finalSpeed = Math.max(25, finalSpeed); // minimum responsive speed when moving
+      }
       const stepProgress = (finalSpeed * simDt) / segDistance;
 
       train.progress += stepProgress;
@@ -862,14 +1003,40 @@ export class MetroEngine {
   }
 
   private handleTrainArrivalAtStation(train: Train, station: Station, line: MetroLine) {
-    // Train pauses at station (longer dwelling if double decker loading large crowds)
+    // Train pauses at station (longer dwelling if double decker loading large crowds, 50% faster if Smart IC)
     const isDouble = !!train.isDoubleDecker;
-    train.dwellingTime = (line.isDepotRecalled && train.passengers.length === 0)
+    let baseDwell = (line.isDepotRecalled && train.passengers.length === 0)
       ? 0.3
       : (isDouble && train.passengers.length > 8)
         ? 1.15
         : 0.8;
+    if (station.hasSmartIC) {
+      baseDwell *= 0.5; // Feature 24: Cổng soát vé Smart IC giảm 50% thời gian chờ!
+    }
+    train.dwellingTime = baseDwell;
     train.currentStationId = station.id;
+
+    // Headway equalization: If trailing too close to the lead train, hold slightly at station to equalize spacing
+    const activeTrainsOnLine = this.state.trains.filter(t => t.lineId === line.id && !t.isDockedAtDepot);
+    if (activeTrainsOnLine.length > 1 && !line.isDepotRecalled) {
+      const totalSegs = line.isLoop ? line.stationIds.length : Math.max(1, line.stationIds.length - 1);
+      const L = line.isLoop ? totalSegs : 2 * totalSegs;
+      const idealSpacing = L / activeTrainsOnLine.length;
+
+      let minGapAhead = L;
+      for (const other of activeTrainsOnLine) {
+        if (other.id === train.id) continue;
+        const gap = getHeadwayDistanceAhead(train, other, totalSegs, line.isLoop);
+        if (gap > 0.001 && gap < minGapAhead) {
+          minGapAhead = gap;
+        }
+      }
+
+      if (minGapAhead < idealSpacing * 0.65) {
+        const holdExtra = Math.min(1.5, (idealSpacing * 0.65 - minGapAhead) * 2.0);
+        train.dwellingTime += holdExtra;
+      }
+    }
 
     // Check if line is recalled to Depot and this station is the designated depot
     const depotId = (line.depotStationId && line.stationIds.includes(line.depotStationId))
@@ -949,6 +1116,16 @@ export class MetroEngine {
           this.state.stats.distanceFareRevenueTotal = (this.state.stats.distanceFareRevenueTotal || 0) + fare;
         }
 
+        // Feature 14: Du khách quốc tế thưởng Tip $10 nếu đi thẳng không đổi tàu
+        if (p.isTourist) {
+          if ((p.transferCount || 0) === 0) {
+            const tip = 10;
+            fareEarned += tip;
+            this.state.stats.totalTouristTips = (this.state.stats.totalTouristTips || 0) + tip;
+            this.addFloatingText(station.x, station.y - 35, '+$10 Tip 📸 Du khách', '#F59E0B');
+          }
+        }
+
         // Feature 16: Hành khách đi khứ hồi (Commuter Roundtrips)
         // Nếu buổi sáng đi từ ga Circle đến ga Square/Star -> xếp vào hàng đợi về nhà buổi chiều!
         const h = this.state.timeOfDayHours % 24;
@@ -995,6 +1172,7 @@ export class MetroEngine {
         const nextStep = getNextStep(p.targetShape);
         if (nextStep && nextStep.lineId !== line.id) {
           // Passenger alights to transfer to another line here
+          p.transferCount = (p.transferCount || 0) + 1;
           station.passengers.push(p);
           soundEngine.playBoard();
         } else {
@@ -2004,6 +2182,20 @@ export class MetroEngine {
   }
 
   // Route Management
+  public getStandardLinesCount(): number {
+    return this.state.lines.filter(l => l.type !== 'feeder_bus' && l.type !== 'double_decker').length;
+  }
+
+  public canCreateLine(type: MetroLineType = 'metro'): boolean {
+    if (this.isUnlimitedMode) return true;
+    if (type === 'feeder_bus' || type === 'double_decker') return true;
+    return this.getStandardLinesCount() < this.state.inventory.availableLines;
+  }
+
+  public canCreateAnyLine(): boolean {
+    return true; // Feeder bus and double-decker lines are always free & available
+  }
+
   public createLine(
     name: string,
     color: string,
@@ -2011,12 +2203,17 @@ export class MetroEngine {
     textColor: string,
     type: MetroLineType = 'metro'
   ): MetroLine | null {
-    if (this.state.lines.length >= this.state.inventory.availableLines) {
-      return null;
+    if (!this.isUnlimitedMode) {
+      if (type !== 'feeder_bus' && type !== 'double_decker') {
+        if (this.getStandardLinesCount() >= this.state.inventory.availableLines) {
+          // Fall back to feeder_bus if standard quota reached
+          type = 'feeder_bus';
+        }
+      }
     }
 
     const newLine: MetroLine = {
-      id: `line-${Date.now()}`,
+      id: `line-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name,
       color,
       darkColor,
@@ -2031,35 +2228,229 @@ export class MetroEngine {
     return newLine;
   }
 
+  /**
+   * Counts how many river-crossing segments an active line currently uses.
+   */
+  public countLineRiverCrossings(line: MetroLine): number {
+    if (!this.mapConfig.riverPolygons || line.stationIds.length < 2) return 0;
+    let count = 0;
+    const sIds = line.stationIds;
+    const totalSegs = line.isLoop ? sIds.length : sIds.length - 1;
+    for (let i = 0; i < totalSegs; i++) {
+      const u = this.state.stations.find(s => s.id === sIds[i]);
+      const v = this.state.stations.find(s => s.id === (i === sIds.length - 1 && line.isLoop ? sIds[0] : sIds[i + 1]));
+      if (u && v && (
+        segmentCrossesRiver(u, v, this.mapConfig.riverPolygons) ||
+        isPointInWater({ x: (u.x + v.x) / 2, y: (u.y + v.y) / 2 }, this.mapConfig.riverPolygons)
+      )) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   public updateLineType(lineId: string, type: MetroLineType): boolean {
     const line = this.state.lines.find(l => l.id === lineId);
     if (!line) return false;
+    const oldType = line.type || 'metro';
+    if (oldType === type) return true;
+
+    // Quota check: switching to standard rail requires available standard line slot
+    if (!this.isUnlimitedMode) {
+      if ((type === 'metro' || type === 'intercity' || type === 'high_speed') && (oldType === 'feeder_bus' || oldType === 'double_decker')) {
+        const currentStandard = this.getStandardLinesCount();
+        if (currentStandard >= this.state.inventory.availableLines) {
+          soundEngine.playDisconnect();
+          this.addFloatingText(740, 470, `❌ Hết hạn mức tuyến Metro (${this.state.inventory.availableLines} tuyến)! Mua thêm trong Shop.`, '#EF4444');
+          return false;
+        }
+      }
+    }
+
+    // Feature 8: Handle river crossings (tunnels) when converting to / from BRT
+    const riverCrossings = this.countLineRiverCrossings(line);
+    if (!this.isUnlimitedMode && riverCrossings > 0) {
+      // If switching FROM rail to BRT: BRT crosses road bridges for free, refund all tunnels
+      if (oldType !== 'feeder_bus' && type === 'feeder_bus') {
+        this.state.inventory.tunnelTokens += riverCrossings;
+        this.addFloatingText(740, 470, `+${riverCrossings} Hầm Vượt Sông hoàn lại (BRT qua cầu miễn phí)`, '#06B6D4');
+      }
+      // If switching FROM BRT to rail: rail requires tunnels, verify and deduct tokens
+      else if (oldType === 'feeder_bus' && type !== 'feeder_bus') {
+        if (this.state.inventory.tunnelTokens < riverCrossings) {
+          soundEngine.playDisconnect();
+          this.addFloatingText(740, 470, `❌ Không đủ Hầm Vượt Sông! Cần ${riverCrossings} hầm để chuyển sang đường sắt`, '#EF4444');
+          return false;
+        }
+        this.state.inventory.tunnelTokens -= riverCrossings;
+        this.addFloatingText(740, 470, `-${riverCrossings} Hầm Vượt Sông (Chuyển sang đường sắt)`, '#06B6D4');
+      }
+    }
+
     line.type = type;
+
+    // Apply or remove fleet specs based on line type
+    if (type === 'double_decker') {
+      for (const t of this.state.trains) {
+        if (t.lineId === lineId) {
+          t.isDoubleDecker = true;
+          t.capacity = 12 + (t.carriagesCount || 0) * 8;
+        }
+      }
+    } else if (type === 'feeder_bus') {
+      // 1 BRT bus carries 6 passengers (does not attach train carriages, recall them)
+      for (const t of this.state.trains) {
+        if (t.lineId === lineId) {
+          if (t.carriagesCount > 0) {
+            this.state.inventory.carriages += t.carriagesCount;
+            t.carriagesCount = 0;
+          }
+          t.isDoubleDecker = false;
+          t.capacity = 6;
+        }
+      }
+    } else {
+      for (const t of this.state.trains) {
+        if (t.lineId === lineId) {
+          t.isDoubleDecker = false;
+          t.capacity = 6 + (t.carriagesCount || 0) * 4;
+        }
+      }
+    }
+
     soundEngine.playConnect();
-    const typeLabel = type === 'high_speed' ? 'High Speed (+80%)' : type === 'intercity' ? 'Intercity (+20%)' : 'Metro (Chuẩn)';
+    const typeLabel = type === 'high_speed'
+      ? 'High Speed (+80%)'
+      : type === 'intercity'
+        ? 'Intercity (+20%)'
+        : type === 'double_decker'
+          ? 'Tàu 2 Tầng (2x sức chứa, miễn phí)'
+          : type === 'feeder_bus'
+            ? 'Buýt BRT (Qua cầu miễn phí, tự do)'
+            : 'Metro (Chuẩn 1.0x)';
     this.addFloatingText(740, 500, `${line.name} ➔ ${typeLabel}`, '#10B981');
+    return true;
+  }
+
+  public renameLine(lineId: string, newName: string): boolean {
+    const line = this.state.lines.find(l => l.id === lineId);
+    const trimmed = newName.trim();
+    if (!line || !trimmed) return false;
+    line.name = trimmed;
+    soundEngine.playConnect();
+    this.addFloatingText(740, 500, `✏️ Tuyến: ${trimmed}`, line.color);
+    return true;
+  }
+
+  public toggleLineCBTC(lineId: string): boolean {
+    const line = this.state.lines.find(l => l.id === lineId);
+    if (!line) return false;
+
+    const turningOn = !line.hasCBTC;
+    const cost = 3500;
+
+    if (turningOn && !this.isUnlimitedMode) {
+      if (this.state.money < cost) {
+        soundEngine.playDisconnect();
+        this.addFloatingText(740, 500, `❌ Cần $${cost.toLocaleString()} để nâng cấp Tín hiệu Tự hành CBTC!`, '#EF4444');
+        return false;
+      }
+      this.state.money -= cost;
+    }
+
+    line.hasCBTC = turningOn;
+    for (const t of this.state.trains) {
+      if (t.lineId === lineId) {
+        t.isCBTC = turningOn;
+      }
+    }
+
+    soundEngine.playConnect();
+    if (turningOn) {
+      this.addFloatingText(740, 500, `📡 ${line.name}: Kích hoạt Tự hành CBTC (-$${cost.toLocaleString()})! Giãn cách 0.18x`, '#06B6D4');
+    } else {
+      this.addFloatingText(740, 500, `📡 ${line.name}: Trở về Tín hiệu Truyền thống`, '#94A3B8');
+    }
+    return true;
+  }
+
+  public upgradeStationSmartIC(stationId: string): boolean {
+    const station = this.state.stations.find(s => s.id === stationId);
+    if (!station || station.hasSmartIC) return false;
+
+    const cost = 1200;
+    if (!this.isUnlimitedMode) {
+      if (this.state.money < cost) {
+        soundEngine.playDisconnect();
+        this.addFloatingText(station.x, station.y - 30, `❌ Cần $${cost.toLocaleString()} để lắp Cổng Soát vé IC Card!`, '#EF4444');
+        return false;
+      }
+      this.state.money -= cost;
+    }
+
+    station.hasSmartIC = true;
+    soundEngine.playConnect();
+    this.addFloatingText(station.x, station.y - 30, `💳 Ga ${station.name}: Cổng Soát vé Thông minh IC Card (-50% chờ)!`, '#10B981');
+    return true;
+  }
+
+  public buyTransitAdContract(cost = 2000): boolean {
+    if (!this.isUnlimitedMode) {
+      if (this.state.money < cost) {
+        soundEngine.playDisconnect();
+        this.addFloatingText(740, 500, `❌ Cần $${cost.toLocaleString()} để ký/gia hạn Hợp đồng Quảng cáo 1 Tuần!`, '#EF4444');
+        return false;
+      }
+      this.state.money -= cost;
+    }
+
+    this.state.stats.transitAdDaysRemaining = (this.state.stats.transitAdDaysRemaining || 0) + 7;
+    this.state.stats.hasTransitAdContract = true;
+    soundEngine.playFanfare();
+    this.addFloatingText(
+      740,
+      500,
+      `📰 Ký Hợp đồng Quảng cáo 1 Tuần (-$${cost.toLocaleString()}): Còn ${this.state.stats.transitAdDaysRemaining} ngày (+$200/ngày/toa)!`,
+      '#0EA5E9'
+    );
+    return true;
+  }
+
+  public toggleTransitAdContract(): boolean {
+    return this.buyTransitAdContract();
+  }
+
+  public triggerExpoWeek(forceStationId?: string): boolean {
+    if (this.state.stations.length === 0) return false;
+    const currentExpo = this.state.stations.find(s => s.isExpoCentre);
+    if (currentExpo) return false;
+
+    let candidate = forceStationId
+      ? this.state.stations.find(s => s.id === forceStationId)
+      : this.state.stations.find(s => (s.shape === 'star' || s.shape === 'diamond' || s.shape === 'square') && this.state.lines.some(l => l.stationIds.includes(s.id)));
+    if (!candidate) {
+      candidate = this.state.stations.find(s => this.state.lines.some(l => l.stationIds.includes(s.id))) || this.state.stations[0];
+    }
+    if (!candidate) return false;
+
+    candidate.isExpoCentre = true;
+    candidate.expoRemainingDays = 7;
+    this.activeExpoStationId = candidate.id;
+    soundEngine.playFanfare();
+    this.addFloatingText(candidate.x, candidate.y - 35, `🌟 TUẦN LỄ EXPO: Ga ${candidate.name} làm Trung tâm Triển lãm! Thưởng $15,000!`, '#F59E0B');
     return true;
   }
 
   public deleteLine(lineId: string) {
     const line = this.state.lines.find(l => l.id === lineId);
     if (line && line.stationIds.length >= 2 && !this.isUnlimitedMode && this.mapConfig.riverPolygons) {
-      let riverCrossingRefund = 0;
-      const sIds = line.stationIds;
-      const totalSegs = line.isLoop ? sIds.length : sIds.length - 1;
-      for (let i = 0; i < totalSegs; i++) {
-        const u = this.state.stations.find(s => s.id === sIds[i]);
-        const v = this.state.stations.find(s => s.id === (i === sIds.length - 1 && line.isLoop ? sIds[0] : sIds[i + 1]));
-        if (u && v && (
-          segmentCrossesRiver(u, v, this.mapConfig.riverPolygons) ||
-          isPointInWater({ x: (u.x + v.x) / 2, y: (u.y + v.y) / 2 }, this.mapConfig.riverPolygons)
-        )) {
-          riverCrossingRefund++;
+      // Feeder bus lines use road bridges for free, so they do NOT tie up tunnel tokens
+      if (line.type !== 'feeder_bus') {
+        const riverCrossingRefund = this.countLineRiverCrossings(line);
+        if (riverCrossingRefund > 0) {
+          this.state.inventory.tunnelTokens += riverCrossingRefund;
+          this.addFloatingText(740, 500, `+${riverCrossingRefund} Hầm Vượt Sông hoàn lại`, '#06B6D4');
         }
-      }
-      if (riverCrossingRefund > 0) {
-        this.state.inventory.tunnelTokens += riverCrossingRefund;
-        this.addFloatingText(740, 500, `+${riverCrossingRefund} Hầm Vượt Sông hoàn lại`, '#06B6D4');
       }
     }
 
@@ -2088,8 +2479,9 @@ export class MetroEngine {
   public clearAllStations(): void {
     // Return all active trains and carriages to depot
     this.state.inventory.unassignedTrains += this.state.trains.length;
-    const totalCars = this.state.trains.reduce((sum, t) => sum + t.carriagesCount, 0);
-    this.state.inventory.carriages += totalCars;
+    this.state.trains.forEach(t => {
+      this.state.inventory.carriages += t.carriagesCount;
+    });
     this.state.trains = [];
 
     // Reset all lines (clear routes)
@@ -2111,8 +2503,9 @@ export class MetroEngine {
   public restoreDefaultStations(): void {
     // Clear lines and return fleet
     this.state.inventory.unassignedTrains += this.state.trains.length;
-    const totalCars = this.state.trains.reduce((sum, t) => sum + t.carriagesCount, 0);
-    this.state.inventory.carriages += totalCars;
+    this.state.trains.forEach(t => {
+      this.state.inventory.carriages += t.carriagesCount;
+    });
     this.state.trains = [];
     for (const line of this.state.lines) {
       line.stationIds = [];
@@ -2488,6 +2881,96 @@ export class MetroEngine {
     return targetLine;
   }
 
+  /**
+   * Mini Metro signature mechanic:
+   * Dragging an existing line route between Station A and Station C over to Station B
+   * splits the segment into A -> B -> C!
+   */
+  public insertStationIntoSegment(
+    lineId: string,
+    fromStationId: string,
+    toStationId: string,
+    insertStationId: string
+  ): { success: boolean; reason?: string } {
+    if (fromStationId === insertStationId || toStationId === insertStationId) {
+      return { success: false, reason: 'Cannot insert station onto itself' };
+    }
+
+    const line = this.state.lines.find(l => l.id === lineId);
+    if (!line) return { success: false, reason: 'Line not found' };
+
+    const insertStation = this.state.stations.find(s => s.id === insertStationId);
+    if (!insertStation) return { success: false, reason: 'Station not found' };
+
+    if (line.stationIds.includes(insertStationId)) {
+      soundEngine.playDisconnect();
+      this.addFloatingText(insertStation.x, insertStation.y - 25, `Ga ${insertStation.name} đã nằm trên tuyến ${line.name}!`, '#F59E0B');
+      return { success: false, reason: 'Station already on line' };
+    }
+
+    const sIds = line.stationIds;
+    let foundIndex = -1;
+    const totalSegs = line.isLoop ? sIds.length : sIds.length - 1;
+
+    for (let i = 0; i < totalSegs; i++) {
+      const a = sIds[i];
+      const b = sIds[(i + 1) % sIds.length];
+      if ((a === fromStationId && b === toStationId) || (a === toStationId && b === fromStationId)) {
+        foundIndex = i;
+        break;
+      }
+    }
+
+    if (foundIndex === -1) {
+      return { success: false, reason: 'Segment not found on line' };
+    }
+
+    // Check river crossings & tunnel quota
+    const isFeederBus = line.type === 'feeder_bus';
+    const crossingsBefore = (!this.isUnlimitedMode && !isFeederBus) ? this.countLineRiverCrossings(line) : 0;
+    const testIds = [...sIds];
+    testIds.splice(foundIndex + 1, 0, insertStationId);
+    const tempLine = { ...line, stationIds: testIds };
+    const crossingsAfter = (!this.isUnlimitedMode && !isFeederBus) ? this.countLineRiverCrossings(tempLine) : 0;
+    const diff = crossingsAfter - crossingsBefore;
+
+    if (diff > 0 && !this.isUnlimitedMode && !isFeederBus) {
+      if (this.state.inventory.tunnelTokens < diff) {
+        soundEngine.playDisconnect();
+        this.addFloatingText(insertStation.x, insertStation.y - 30, '❌ Không đủ Hầm/Cầu vượt sông! Mua trong Shop', '#EF4444');
+        return { success: false, reason: 'Not enough tunnels' };
+      }
+      this.state.inventory.tunnelTokens -= diff;
+      this.addFloatingText(insertStation.x, insertStation.y - 45, `🌊 -${diff} Hầm Vượt Sông`, '#06B6D4');
+    } else if (diff < 0 && !this.isUnlimitedMode && !isFeederBus) {
+      const refund = -diff;
+      this.state.inventory.tunnelTokens += refund;
+      this.addFloatingText(insertStation.x, insertStation.y - 45, `+${refund} Hầm Vượt Sông hoàn lại`, '#06B6D4');
+    }
+
+    // Insert station into segment
+    sIds.splice(foundIndex + 1, 0, insertStationId);
+
+    // Update trains traveling on this line
+    for (const train of this.state.trains) {
+      if (train.lineId === lineId) {
+        if (train.segmentIndex > foundIndex) {
+          train.segmentIndex++;
+        }
+      }
+    }
+
+    soundEngine.playConnect();
+    this.addFloatingText(
+      insertStation.x,
+      insertStation.y - 30,
+      `🚇 Đã kéo thêm Ga ${insertStation.name} vào Tuyến ${line.name}!`,
+      line.color || '#10B981'
+    );
+
+    return { success: true };
+  }
+
   public deployTrainToLine(lineId: string): boolean {
     if (this.state.inventory.unassignedTrains <= 0) return false;
 
@@ -2501,33 +2984,71 @@ export class MetroEngine {
     const isRecalled = !!line.isDepotRecalled;
     const depotIdx = Math.max(0, line.stationIds.indexOf(depotId));
     const maxSeg = Math.max(0, line.isLoop ? line.stationIds.length - 1 : line.stationIds.length - 2);
-    const segIdx = depotIdx >= line.stationIds.length - 1 && !line.isLoop ? maxSeg : Math.min(depotIdx, maxSeg);
-    const dir = depotIdx >= line.stationIds.length - 1 && !line.isLoop ? -1 : 1;
+    let segIdx = depotIdx >= line.stationIds.length - 1 && !line.isLoop ? maxSeg : Math.min(depotIdx, maxSeg);
+    let dir: 1 | -1 = depotIdx >= line.stationIds.length - 1 && !line.isLoop ? -1 : 1;
+    let spawnStationId = depotId;
 
+    const runningTrains = this.state.trains.filter(t => t.lineId === lineId && !t.isDockedAtDepot);
+    if (!isRecalled && runningTrains.length > 0) {
+      // Find the station on the line with the greatest minimum distance to any active train (natural equidistant spacing)
+      const totalSegs = line.isLoop ? line.stationIds.length : Math.max(1, line.stationIds.length - 1);
+      const L = line.isLoop ? totalSegs : 2 * totalSegs;
+
+      let bestStationIdx = 0;
+      let maxMinDist = -1;
+
+      for (let sIdx = 0; sIdx < line.stationIds.length; sIdx++) {
+        const fakeTrain = { segmentIndex: Math.min(sIdx, totalSegs - 1), progress: 0, direction: 1 } as Train;
+        const fakeCoord = getTrainRouteCoordinate(fakeTrain, totalSegs, line.isLoop);
+
+        let minDist = L;
+        for (const rt of runningTrains) {
+          const rtCoord = getTrainRouteCoordinate(rt, totalSegs, line.isLoop);
+          const d1 = (rtCoord - fakeCoord + L) % L;
+          const d2 = (fakeCoord - rtCoord + L) % L;
+          const dist = Math.min(d1, d2);
+          if (dist < minDist) minDist = dist;
+        }
+
+        if (minDist > maxMinDist) {
+          maxMinDist = minDist;
+          bestStationIdx = sIdx;
+        }
+      }
+
+      spawnStationId = line.stationIds[bestStationIdx];
+      segIdx = bestStationIdx >= line.stationIds.length - 1 && !line.isLoop ? maxSeg : Math.min(bestStationIdx, maxSeg);
+      dir = bestStationIdx >= line.stationIds.length - 1 && !line.isLoop ? -1 : 1;
+    }
+
+    const isDouble = line.type === 'double_decker';
+    const isBus = line.type === 'feeder_bus';
     this.state.inventory.unassignedTrains--;
     const train: Train = {
       id: `train-${Date.now()}-${Math.random()}`,
       lineId,
       carriagesCount: 0,
-      capacity: 6,
+      capacity: isDouble ? 12 : 6, // 1 xe BRT chở 6 người
       speed: 45,
       segmentIndex: segIdx,
       progress: 0,
       direction: dir,
       passengers: [],
-      dwellingTime: isRecalled ? 999999 : 0,
-      currentStationId: depotId,
-      isDockedAtDepot: isRecalled
+      dwellingTime: isRecalled ? 999999 : 0.8,
+      currentStationId: spawnStationId,
+      isDockedAtDepot: isRecalled,
+      isDoubleDecker: isDouble
     };
 
     this.state.trains.push(train);
     soundEngine.playConnect();
 
     // Floating text notification
-    const depotStation = this.state.stations.find(s => s.id === depotId);
-    if (depotStation) {
-      const msg = isRecalled ? `+1 Tàu (Đỗ tại Depot ${line.name})` : `+1 Tàu (${line.name})`;
-      this.addFloatingText(depotStation.x, depotStation.y - 30, msg, '#10B981');
+    const spawnStation = this.state.stations.find(s => s.id === spawnStationId) || this.state.stations.find(s => s.id === depotId);
+    if (spawnStation) {
+      const vehicleName = isBus ? 'Xe Buýt BRT (6 chỗ)' : (isDouble ? 'Tàu 2 Tầng (12 chỗ)' : 'Tàu');
+      const msg = isRecalled ? `+1 ${vehicleName} (Đỗ tại Depot ${line.name})` : `+1 ${vehicleName} (${line.name})`;
+      this.addFloatingText(spawnStation.x, spawnStation.y - 30, msg, '#10B981');
     }
     return true;
   }
@@ -2577,6 +3098,7 @@ export class MetroEngine {
     if (!line || !line.stationIds.includes(stationId)) return false;
 
     const station = this.state.stations.find(s => s.id === stationId);
+    const crossingsBefore = (!this.isUnlimitedMode && line.type !== 'feeder_bus') ? this.countLineRiverCrossings(line) : 0;
 
     // Remove this station from line
     line.stationIds = line.stationIds.filter(id => id !== stationId);
@@ -2604,6 +3126,12 @@ export class MetroEngine {
         this.addFloatingText(station.x, station.y - 30, `Đã xóa tuyến ${lineName} (ít hơn 2 ga) ➔ Hoàn tàu về kho`, '#EF4444');
       }
     } else {
+      const crossingsAfter = (!this.isUnlimitedMode && line.type !== 'feeder_bus') ? this.countLineRiverCrossings(line) : 0;
+      if (crossingsBefore > crossingsAfter) {
+        const refund = crossingsBefore - crossingsAfter;
+        this.state.inventory.tunnelTokens += refund;
+        this.addFloatingText(station ? station.x : 740, (station ? station.y : 500) - 55, `+${refund} Hầm Vượt Sông hoàn lại`, '#06B6D4');
+      }
       soundEngine.playDisconnect();
       if (station) {
         this.addFloatingText(station.x, station.y - 30, `✖ Đã hủy ga khỏi ${line.name}`, line.color || '#F59E0B');
@@ -2650,19 +3178,34 @@ export class MetroEngine {
   }
 
   public addCarriageToTrain(trainId: string): boolean {
-    if (this.state.inventory.carriages <= 0) return false;
     const train = this.state.trains.find(t => t.id === trainId);
     if (!train || train.carriagesCount >= 2) return false;
 
+    const line = this.state.lines.find(l => l.id === train.lineId);
+    if (line?.type === 'feeder_bus') {
+      this.addFloatingText(740, 500, 'Xe buýt BRT chở 6 người (không gắn toa xe)!', '#F59E0B');
+      return false;
+    }
+
+    if (this.state.inventory.carriages <= 0) return false;
     this.state.inventory.carriages--;
+
+    const isDouble = train.isDoubleDecker || line?.type === 'double_decker';
     train.carriagesCount++;
-    train.capacity += 4;
+    train.capacity += isDouble ? 8 : 4;
     soundEngine.playConnect();
     return true;
   }
 
   public addCarriageToLine(lineId: string): boolean {
+    const line = this.state.lines.find(l => l.id === lineId);
+    if (line?.type === 'feeder_bus') {
+      this.addFloatingText(740, 500, 'Xe buýt BRT chở 6 người (không gắn toa xe)!', '#F59E0B');
+      return false;
+    }
+
     if (this.state.inventory.carriages <= 0) return false;
+
     const lineTrains = this.state.trains.filter(t => t.lineId === lineId);
     if (lineTrains.length === 0) return false;
 
@@ -2672,16 +3215,17 @@ export class MetroEngine {
     if (!train) return false;
 
     this.state.inventory.carriages--;
+    const isDouble = line?.type === 'double_decker' || train.isDoubleDecker;
     train.carriagesCount++;
-    train.capacity += 4;
+    train.capacity += isDouble ? 8 : 4;
     soundEngine.playConnect();
 
     const currStation = this.state.stations.find(s => s.id === train.currentStationId);
     this.addFloatingText(
       currStation ? currStation.x : 740,
       currStation ? currStation.y - 25 : 500,
-      '+1 Toa (Sức chứa 10)',
-      '#60A5FA'
+      `+1 Toa ${isDouble ? '2 Tầng ' : ''}(Sức chứa ${train.capacity})`,
+      isDouble ? '#38BDF8' : '#60A5FA'
     );
     return true;
   }
@@ -2695,8 +3239,11 @@ export class MetroEngine {
     const train = sorted.find(t => t.carriagesCount > 0);
     if (!train) return false;
 
+    const line = this.state.lines.find(l => l.id === lineId);
+    const isDouble = train.isDoubleDecker || line?.type === 'double_decker';
+
     train.carriagesCount--;
-    train.capacity -= 4;
+    train.capacity -= isDouble ? 8 : 4;
     this.state.inventory.carriages++;
     soundEngine.playDisconnect();
 
@@ -2704,8 +3251,8 @@ export class MetroEngine {
     this.addFloatingText(
       currStation ? currStation.x : 740,
       currStation ? currStation.y - 25 : 500,
-      '-1 Toa về kho',
-      '#94A3B8'
+      `-1 Toa ${isDouble ? '2 Tầng ' : ''}về kho`,
+      isDouble ? '#38BDF8' : '#60A5FA'
     );
     return true;
   }
@@ -2779,6 +3326,19 @@ export class MetroEngine {
     this.state.inventory.doubleDeckerTrains = (this.state.inventory.doubleDeckerTrains || 0) + 1;
     soundEngine.playFanfare();
     this.addFloatingText(740, 500, `-$${cost} (+1 Tàu Hai Tầng)`, '#3B82F6');
+    return true;
+  }
+
+  // Toa xe hai tầng riêng biệt (đắt hơn 40% toa thường: $250 * 1.4 = $350, +8 sức chứa)
+  public buyDoubleDeckerCarriage(cost = 350): boolean {
+    if (this.state.money < cost) {
+      soundEngine.playDisconnect();
+      return false;
+    }
+    this.state.money -= cost;
+    this.state.inventory.doubleDeckerCarriages = (this.state.inventory.doubleDeckerCarriages || 0) + 1;
+    soundEngine.playFanfare();
+    this.addFloatingText(740, 500, `-$${cost} (+1 Toa Tàu 2 Tầng, +8 Chỗ)`, '#38BDF8');
     return true;
   }
 
@@ -3056,6 +3616,9 @@ export class MetroEngine {
           availableLines: data.inventory.availableLines ?? 3,
           unassignedTrains: data.inventory.unassignedTrains ?? 2,
           carriages: data.inventory.carriages ?? 1,
+          doubleDeckerCarriages: data.inventory.doubleDeckerCarriages ?? 0,
+          doubleDeckerTrains: data.inventory.doubleDeckerTrains ?? 0,
+          feederBuses: data.inventory.feederBuses ?? 1,
           interchangeTokens: data.inventory.interchangeTokens ?? 1,
           tunnelTokens: data.inventory.tunnelTokens ?? 2
         };
@@ -3063,6 +3626,8 @@ export class MetroEngine {
 
       if (data.stats) {
         this.state.stats = {
+          ...this.state.stats,
+          ...data.stats,
           totalPassengersDelivered: data.stats.totalPassengersDelivered ?? 0,
           totalDays: data.stats.totalDays ?? 1,
           totalWeeks: data.stats.totalWeeks ?? 1,
@@ -3071,6 +3636,19 @@ export class MetroEngine {
           peakTrainsUsed: data.stats.peakTrainsUsed ?? 0,
           crowdedWarningsAvoided: data.stats.crowdedWarningsAvoided ?? 0,
           todayPassengers: data.stats.todayPassengers ?? 0,
+          citizenSatisfaction: data.stats.citizenSatisfaction ?? 95,
+          hasTransitAdContract: !!data.stats.hasTransitAdContract,
+          transitAdDaysRemaining: typeof data.stats.transitAdDaysRemaining === 'number'
+            ? data.stats.transitAdDaysRemaining
+            : (data.stats.hasTransitAdContract ? 7 : 0),
+          totalAdRevenue: data.stats.totalAdRevenue ?? 0,
+          monthlyPassHoldersCount: data.stats.monthlyPassHoldersCount ?? 20,
+          weeklyPassRevenueTotal: data.stats.weeklyPassRevenueTotal ?? 0,
+          distanceFareRevenueTotal: data.stats.distanceFareRevenueTotal ?? 0,
+          luggageFareRevenueTotal: data.stats.luggageFareRevenueTotal ?? 0,
+          nightMaintenanceCount: data.stats.nightMaintenanceCount ?? 0,
+          totalTouristTips: data.stats.totalTouristTips ?? 0,
+          expoEventsCompleted: data.stats.expoEventsCompleted ?? 0,
           dailyHistory: Array.isArray(data.stats.dailyHistory) ? data.stats.dailyHistory : []
         };
       }
