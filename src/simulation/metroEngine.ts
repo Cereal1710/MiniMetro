@@ -168,6 +168,7 @@ export class MetroEngine {
         interchangeTokens: 1,
         tunnelTokens: 2,
         doubleDeckerTrains: 0,
+        doubleDeckerCarriages: 0,
         feederBuses: 1
       },
       stats: {
@@ -2261,25 +2262,38 @@ export class MetroEngine {
     if (type === 'double_decker') {
       for (const t of this.state.trains) {
         if (t.lineId === lineId) {
+          // If train had standard carriages, return them because double-decker trains use dedicated carriages
+          if (!t.isDoubleDecker && t.carriagesCount > 0) {
+            this.state.inventory.carriages += t.carriagesCount;
+            t.carriagesCount = 0;
+          }
           t.isDoubleDecker = true;
-          t.capacity = (6 + (t.carriagesCount || 0) * 4) * 2;
+          t.capacity = 12 + (t.carriagesCount || 0) * 8;
         }
       }
     } else if (type === 'feeder_bus') {
       // 1 BRT bus carries 6 passengers (does not attach train carriages)
       for (const t of this.state.trains) {
         if (t.lineId === lineId) {
-          t.isDoubleDecker = false;
-          if (t.carriagesCount > 0) {
+          if (t.isDoubleDecker && t.carriagesCount > 0) {
+            this.state.inventory.doubleDeckerCarriages = (this.state.inventory.doubleDeckerCarriages || 0) + t.carriagesCount;
+            t.carriagesCount = 0;
+          } else if (t.carriagesCount > 0) {
             this.state.inventory.carriages += t.carriagesCount;
             t.carriagesCount = 0;
           }
+          t.isDoubleDecker = false;
           t.capacity = 6;
         }
       }
     } else {
       for (const t of this.state.trains) {
         if (t.lineId === lineId) {
+          // If switching from double-decker, return dedicated double-decker carriages to inventory
+          if (t.isDoubleDecker && t.carriagesCount > 0) {
+            this.state.inventory.doubleDeckerCarriages = (this.state.inventory.doubleDeckerCarriages || 0) + t.carriagesCount;
+            t.carriagesCount = 0;
+          }
           t.isDoubleDecker = false;
           t.capacity = 6 + (t.carriagesCount || 0) * 4;
         }
@@ -2426,7 +2440,11 @@ export class MetroEngine {
     const trainsOnLine = this.state.trains.filter(t => t.lineId === lineId);
     this.state.inventory.unassignedTrains += trainsOnLine.length;
     trainsOnLine.forEach(t => {
-      this.state.inventory.carriages += t.carriagesCount;
+      if (t.isDoubleDecker) {
+        this.state.inventory.doubleDeckerCarriages = (this.state.inventory.doubleDeckerCarriages || 0) + t.carriagesCount;
+      } else {
+        this.state.inventory.carriages += t.carriagesCount;
+      }
     });
 
     this.state.trains = this.state.trains.filter(t => t.lineId !== lineId);
@@ -2447,8 +2465,13 @@ export class MetroEngine {
   public clearAllStations(): void {
     // Return all active trains and carriages to depot
     this.state.inventory.unassignedTrains += this.state.trains.length;
-    const totalCars = this.state.trains.reduce((sum, t) => sum + t.carriagesCount, 0);
-    this.state.inventory.carriages += totalCars;
+    this.state.trains.forEach(t => {
+      if (t.isDoubleDecker) {
+        this.state.inventory.doubleDeckerCarriages = (this.state.inventory.doubleDeckerCarriages || 0) + t.carriagesCount;
+      } else {
+        this.state.inventory.carriages += t.carriagesCount;
+      }
+    });
     this.state.trains = [];
 
     // Reset all lines (clear routes)
@@ -2470,8 +2493,13 @@ export class MetroEngine {
   public restoreDefaultStations(): void {
     // Clear lines and return fleet
     this.state.inventory.unassignedTrains += this.state.trains.length;
-    const totalCars = this.state.trains.reduce((sum, t) => sum + t.carriagesCount, 0);
-    this.state.inventory.carriages += totalCars;
+    this.state.trains.forEach(t => {
+      if (t.isDoubleDecker) {
+        this.state.inventory.doubleDeckerCarriages = (this.state.inventory.doubleDeckerCarriages || 0) + t.carriagesCount;
+      } else {
+        this.state.inventory.carriages += t.carriagesCount;
+      }
+    });
     this.state.trains = [];
     for (const line of this.state.lines) {
       line.stationIds = [];
@@ -2950,7 +2978,11 @@ export class MetroEngine {
 
     // Return train and carriages to inventory
     this.state.inventory.unassignedTrains++;
-    this.state.inventory.carriages += trainToRemove.carriagesCount;
+    if (trainToRemove.isDoubleDecker) {
+      this.state.inventory.doubleDeckerCarriages = (this.state.inventory.doubleDeckerCarriages || 0) + trainToRemove.carriagesCount;
+    } else {
+      this.state.inventory.carriages += trainToRemove.carriagesCount;
+    }
 
     // Remove from trains list
     this.state.trains = this.state.trains.filter(t => t.id !== trainToRemove.id);
@@ -3054,7 +3086,6 @@ export class MetroEngine {
   }
 
   public addCarriageToTrain(trainId: string): boolean {
-    if (this.state.inventory.carriages <= 0) return false;
     const train = this.state.trains.find(t => t.id === trainId);
     if (!train || train.carriagesCount >= 2) return false;
 
@@ -3064,19 +3095,42 @@ export class MetroEngine {
       return false;
     }
 
-    this.state.inventory.carriages--;
-    train.carriagesCount++;
-    train.capacity += 4;
-    soundEngine.playConnect();
-    return true;
+    const isDouble = train.isDoubleDecker || line?.type === 'double_decker';
+    if (isDouble) {
+      if ((this.state.inventory.doubleDeckerCarriages || 0) <= 0) {
+        this.addFloatingText(740, 500, 'Cần Toa Hai Tầng riêng ($350 trong Shop)!', '#EF4444');
+        return false;
+      }
+      this.state.inventory.doubleDeckerCarriages = (this.state.inventory.doubleDeckerCarriages || 0) - 1;
+      train.carriagesCount++;
+      train.capacity += 8;
+      soundEngine.playConnect();
+      return true;
+    } else {
+      if (this.state.inventory.carriages <= 0) return false;
+      this.state.inventory.carriages--;
+      train.carriagesCount++;
+      train.capacity += 4;
+      soundEngine.playConnect();
+      return true;
+    }
   }
 
   public addCarriageToLine(lineId: string): boolean {
-    if (this.state.inventory.carriages <= 0) return false;
     const line = this.state.lines.find(l => l.id === lineId);
     if (line?.type === 'feeder_bus') {
       this.addFloatingText(740, 500, 'Xe buýt BRT chở 6 người (không gắn toa xe)!', '#F59E0B');
       return false;
+    }
+
+    const isDouble = line?.type === 'double_decker';
+    if (isDouble) {
+      if ((this.state.inventory.doubleDeckerCarriages || 0) <= 0) {
+        this.addFloatingText(740, 500, 'Cần Toa Hai Tầng riêng ($350 trong Shop)!', '#EF4444');
+        return false;
+      }
+    } else {
+      if (this.state.inventory.carriages <= 0) return false;
     }
 
     const lineTrains = this.state.trains.filter(t => t.lineId === lineId);
@@ -3087,19 +3141,35 @@ export class MetroEngine {
     const train = sorted.find(t => t.carriagesCount < 2);
     if (!train) return false;
 
-    this.state.inventory.carriages--;
-    train.carriagesCount++;
-    train.capacity += 4;
-    soundEngine.playConnect();
+    if (isDouble || train.isDoubleDecker) {
+      this.state.inventory.doubleDeckerCarriages = Math.max(0, (this.state.inventory.doubleDeckerCarriages || 0) - 1);
+      train.carriagesCount++;
+      train.capacity += 8;
+      soundEngine.playConnect();
 
-    const currStation = this.state.stations.find(s => s.id === train.currentStationId);
-    this.addFloatingText(
-      currStation ? currStation.x : 740,
-      currStation ? currStation.y - 25 : 500,
-      '+1 Toa (Sức chứa 10)',
-      '#60A5FA'
-    );
-    return true;
+      const currStation = this.state.stations.find(s => s.id === train.currentStationId);
+      this.addFloatingText(
+        currStation ? currStation.x : 740,
+        currStation ? currStation.y - 25 : 500,
+        `+1 Toa 2 Tầng (Sức chứa ${train.capacity})`,
+        '#38BDF8'
+      );
+      return true;
+    } else {
+      this.state.inventory.carriages--;
+      train.carriagesCount++;
+      train.capacity += 4;
+      soundEngine.playConnect();
+
+      const currStation = this.state.stations.find(s => s.id === train.currentStationId);
+      this.addFloatingText(
+        currStation ? currStation.x : 740,
+        currStation ? currStation.y - 25 : 500,
+        `+1 Toa (Sức chứa ${train.capacity})`,
+        '#60A5FA'
+      );
+      return true;
+    }
   }
 
   public removeCarriageFromLine(lineId: string): boolean {
@@ -3111,19 +3181,38 @@ export class MetroEngine {
     const train = sorted.find(t => t.carriagesCount > 0);
     if (!train) return false;
 
-    train.carriagesCount--;
-    train.capacity -= 4;
-    this.state.inventory.carriages++;
-    soundEngine.playDisconnect();
+    const line = this.state.lines.find(l => l.id === lineId);
+    const isDouble = train.isDoubleDecker || line?.type === 'double_decker';
 
-    const currStation = this.state.stations.find(s => s.id === train.currentStationId);
-    this.addFloatingText(
-      currStation ? currStation.x : 740,
-      currStation ? currStation.y - 25 : 500,
-      '-1 Toa về kho',
-      '#94A3B8'
-    );
-    return true;
+    if (isDouble) {
+      train.carriagesCount--;
+      train.capacity -= 8;
+      this.state.inventory.doubleDeckerCarriages = (this.state.inventory.doubleDeckerCarriages || 0) + 1;
+      soundEngine.playDisconnect();
+
+      const currStation = this.state.stations.find(s => s.id === train.currentStationId);
+      this.addFloatingText(
+        currStation ? currStation.x : 740,
+        currStation ? currStation.y - 25 : 500,
+        '-1 Toa 2 Tầng về kho',
+        '#38BDF8'
+      );
+      return true;
+    } else {
+      train.carriagesCount--;
+      train.capacity -= 4;
+      this.state.inventory.carriages++;
+      soundEngine.playDisconnect();
+
+      const currStation = this.state.stations.find(s => s.id === train.currentStationId);
+      this.addFloatingText(
+        currStation ? currStation.x : 740,
+        currStation ? currStation.y - 25 : 500,
+        '-1 Toa về kho',
+        '#94A3B8'
+      );
+      return true;
+    }
   }
 
   public upgradeStationToInterchange(stationId: string): boolean {
@@ -3195,6 +3284,19 @@ export class MetroEngine {
     this.state.inventory.doubleDeckerTrains = (this.state.inventory.doubleDeckerTrains || 0) + 1;
     soundEngine.playFanfare();
     this.addFloatingText(740, 500, `-$${cost} (+1 Tàu Hai Tầng)`, '#3B82F6');
+    return true;
+  }
+
+  // Toa xe hai tầng riêng biệt (đắt hơn 40% toa thường: $250 * 1.4 = $350, +8 sức chứa)
+  public buyDoubleDeckerCarriage(cost = 350): boolean {
+    if (this.state.money < cost) {
+      soundEngine.playDisconnect();
+      return false;
+    }
+    this.state.money -= cost;
+    this.state.inventory.doubleDeckerCarriages = (this.state.inventory.doubleDeckerCarriages || 0) + 1;
+    soundEngine.playFanfare();
+    this.addFloatingText(740, 500, `-$${cost} (+1 Toa Tàu 2 Tầng, +8 Chỗ)`, '#38BDF8');
     return true;
   }
 
@@ -3472,6 +3574,9 @@ export class MetroEngine {
           availableLines: data.inventory.availableLines ?? 3,
           unassignedTrains: data.inventory.unassignedTrains ?? 2,
           carriages: data.inventory.carriages ?? 1,
+          doubleDeckerCarriages: data.inventory.doubleDeckerCarriages ?? 0,
+          doubleDeckerTrains: data.inventory.doubleDeckerTrains ?? 0,
+          feederBuses: data.inventory.feederBuses ?? 1,
           interchangeTokens: data.inventory.interchangeTokens ?? 1,
           tunnelTokens: data.inventory.tunnelTokens ?? 2
         };

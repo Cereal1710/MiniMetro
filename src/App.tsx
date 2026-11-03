@@ -2148,6 +2148,7 @@ export default function App() {
           onClose={() => setIsShopModalOpen(false)}
           onBuyTrain={() => { engine?.buyTrain(); syncSnapshot(); }}
           onBuyCarriage={() => { engine?.buyCarriage(); syncSnapshot(); }}
+          onBuyDoubleDeckerCarriage={() => { engine?.buyDoubleDeckerCarriage(); syncSnapshot(); }}
           onBuyLine={() => { engine?.buyLine(); syncSnapshot(); }}
           onBuyInterchange={() => { engine?.buyInterchangeUpgrade(); syncSnapshot(); }}
           onBuyTunnel={() => { engine?.buyTunnel(); syncSnapshot(); }}

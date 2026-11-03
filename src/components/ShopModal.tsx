@@ -13,6 +13,7 @@ interface ShopModalProps {
   onClose: () => void;
   onBuyTrain: () => void;
   onBuyCarriage: () => void;
+  onBuyDoubleDeckerCarriage?: () => void;
   onBuyLine: () => void;
   onBuyInterchange: () => void;
   onBuyTunnel?: () => void;
@@ -33,6 +34,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   onClose,
   onBuyTrain,
   onBuyCarriage,
+  onBuyDoubleDeckerCarriage,
   onBuyLine,
   onBuyInterchange,
   onBuyTunnel,
@@ -121,15 +123,28 @@ export const ShopModal: React.FC<ShopModalProps> = ({
       countLabelEn: 'Unlocked'
     },
     {
-      titleVi: 'Toa Chở Khách Phụ',
-      titleEn: 'Carriage Extension',
-      descVi: 'Gắn thêm toa vào đoàn tàu hiện có (+4 sức chứa khách mỗi toa).',
-      descEn: 'Attach extra carriage to an active train (+4 passenger capacity).',
+      titleVi: 'Toa Chở Khách Tiêu Chuẩn',
+      titleEn: 'Standard Carriage Extension',
+      descVi: 'Gắn thêm toa vào đoàn tàu thường (+4 sức chứa khách mỗi toa).',
+      descEn: 'Attach extra carriage to standard/intercity trains (+4 passenger capacity).',
       cost: carriageCost,
       icon: <Layers className="w-5 h-5 text-indigo-400" />,
       canBuy: money >= carriageCost,
       action: onBuyCarriage,
       currentCount: inventory.carriages,
+      countLabelVi: 'Có sẵn',
+      countLabelEn: 'Available'
+    },
+    {
+      titleVi: 'Toa Tàu Hai Tầng (+40% giá)',
+      titleEn: 'Double-Decker Carriage (+40% cost)',
+      descVi: 'Toa riêng chuyên dụng cho Tuyến Tàu Hai Tầng (+8 chỗ ngồi, đắt hơn 40% so với toa thường: $350).',
+      descEn: 'Dedicated carriage for Double-Decker lines (+8 seats, 40% higher price: $350).',
+      cost: 350,
+      icon: <Layers className="w-5 h-5 text-sky-400" />,
+      canBuy: money >= 350 && !!onBuyDoubleDeckerCarriage,
+      action: onBuyDoubleDeckerCarriage || (() => {}),
+      currentCount: inventory.doubleDeckerCarriages || 0,
       countLabelVi: 'Có sẵn',
       countLabelEn: 'Available'
     },

@@ -872,29 +872,47 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                         </span>
 
                         {/* Plus Carriage */}
-                        <button
-                          disabled={inventory.carriages <= 0 || trainsOnThisLine.length === 0 || carriagesOnThisLine >= maxCarriagesOnLine}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAddCarriage(line.id);
-                          }}
-                          title={
-                            trainsOnThisLine.length === 0
-                              ? (lang === 'vi' ? 'Cần có tàu chạy trên tuyến trước khi gắn toa' : 'Deploy train first')
-                              : inventory.carriages > 0 && carriagesOnThisLine < maxCarriagesOnLine
-                              ? (lang === 'vi' ? `Gắn 1 toa xe (+4 khách, kho còn ${inventory.carriages})` : `Attach 1 carriage (+4 cap, ${inventory.carriages} in depot)`)
-                              : carriagesOnThisLine >= maxCarriagesOnLine
-                              ? (lang === 'vi' ? 'Đã tối đa 2 toa xe/mỗi tàu' : 'Max 2 carriages per train')
-                              : (lang === 'vi' ? 'Kho hết toa xe! Mua thêm trong Shop' : 'Depot empty! Buy in Shop')
-                          }
-                          className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg font-bold transition touch-manipulation ${
-                            inventory.carriages > 0 && trainsOnThisLine.length > 0 && carriagesOnThisLine < maxCarriagesOnLine
-                              ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500 hover:text-white cursor-pointer active:scale-90'
-                              : 'opacity-25 cursor-not-allowed text-neutral-500'
-                          }`}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
+                        {(() => {
+                          const isDouble = line.type === 'double_decker';
+                          const availableCarriages = isDouble ? (inventory.doubleDeckerCarriages || 0) : inventory.carriages;
+                          const hasStock = availableCarriages > 0;
+                          const canAdd = hasStock && trainsOnThisLine.length > 0 && carriagesOnThisLine < maxCarriagesOnLine;
+                          return (
+                            <button
+                              disabled={!canAdd}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onAddCarriage(line.id);
+                              }}
+                              title={
+                                trainsOnThisLine.length === 0
+                                  ? (lang === 'vi' ? 'Cần có tàu chạy trên tuyến trước khi gắn toa' : 'Deploy train first')
+                                  : hasStock && carriagesOnThisLine < maxCarriagesOnLine
+                                  ? (lang === 'vi'
+                                      ? (isDouble
+                                          ? `Gắn 1 toa 2 tầng (+8 khách, kho còn ${availableCarriages})`
+                                          : `Gắn 1 toa xe (+4 khách, kho còn ${availableCarriages})`)
+                                      : (isDouble
+                                          ? `Attach 1 double-decker carriage (+8 cap, ${availableCarriages} in depot)`
+                                          : `Attach 1 carriage (+4 cap, ${inventory.carriages} in depot)`))
+                                  : carriagesOnThisLine >= maxCarriagesOnLine
+                                  ? (lang === 'vi' ? 'Đã tối đa 2 toa xe/mỗi tàu' : 'Max 2 carriages per train')
+                                  : (lang === 'vi'
+                                      ? (isDouble ? 'Kho hết toa 2 tầng ($350)! Mua trong Shop' : 'Kho hết toa xe! Mua thêm trong Shop')
+                                      : (isDouble ? 'Depot empty! Buy double-decker carriage in Shop' : 'Depot empty! Buy in Shop'))
+                              }
+                              className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg font-bold transition touch-manipulation ${
+                                canAdd
+                                  ? (isDouble
+                                      ? 'bg-sky-500/20 text-sky-300 hover:bg-sky-500 hover:text-white cursor-pointer active:scale-90'
+                                      : 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500 hover:text-white cursor-pointer active:scale-90')
+                                  : 'opacity-25 cursor-not-allowed text-neutral-500'
+                              }`}
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}
@@ -931,7 +949,7 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
           {/* Spare Carriages in Depot */}
           <div
             onClick={onOpenShop}
-            title={lang === 'vi' ? 'Toa xe bổ sung trong kho' : 'Extra carriages in depot'}
+            title={lang === 'vi' ? 'Toa xe tiêu chuẩn trong kho' : 'Extra carriages in depot'}
             className={`p-2 rounded-xl border transition cursor-pointer ${
               isDark ? 'bg-slate-800/60 border-slate-700/60 hover:border-slate-500' : 'bg-white border-neutral-200 hover:border-neutral-400'
             }`}
@@ -944,6 +962,24 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
               {inventory.carriages}
             </div>
           </div>
+
+          {/* Double-Decker Carriages in Depot (if purchased) */}
+          {(inventory.doubleDeckerCarriages ?? 0) > 0 && (
+            <div
+              onClick={onOpenShop}
+              title={lang === 'vi' ? 'Toa 2 tầng trong kho (+8 chỗ, $350)' : 'Double-decker carriages (+8 cap)'}
+              className={`p-2 rounded-xl border transition cursor-pointer ${
+                isDark ? 'bg-sky-950/30 border-sky-500/40 hover:border-sky-400' : 'bg-sky-50 border-sky-300 hover:border-sky-500'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-1 text-[11px] text-sky-400 font-semibold mb-0.5">
+                <span>Toa 2T</span>
+              </div>
+              <div className="font-mono font-black text-sm text-sky-400">
+                {inventory.doubleDeckerCarriages}
+              </div>
+            </div>
+          )}
 
           {/* Double-Decker Trains (if unlocked/purchased) */}
           {(inventory.doubleDeckerTrains ?? 0) > 0 && (

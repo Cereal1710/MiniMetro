@@ -212,31 +212,48 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                   </div>
 
                   {/* Gắn toa button */}
-                  <button
-                    disabled={(!isUnlimitedMode && inventory.carriages <= 0) || trainsOnThisLine.length === 0 || (!isUnlimitedMode && carriagesOnThisLine >= maxCarriagesOnLine)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddCarriage(line.id);
-                    }}
-                    title={
-                      trainsOnThisLine.length === 0
-                        ? (lang === 'vi' ? 'Cần có tàu chạy trên tuyến trước khi gắn toa' : 'Deploy a train first before attaching carriages')
-                        : isUnlimitedMode
-                        ? (lang === 'vi' ? 'Gắn 1 toa xe (Vô hạn toa khả dụng, +4 khách)' : 'Attach 1 carriage (Unlimited mode enabled)')
-                        : inventory.carriages > 0 && carriagesOnThisLine < maxCarriagesOnLine
-                        ? (lang === 'vi' ? `Gắn 1 toa xe vào tàu (Kho còn ${inventory.carriages} toa, sức chứa +4 khách)` : `Attach 1 carriage (${inventory.carriages} ready in depot, +4 capacity)`)
-                        : carriagesOnThisLine >= maxCarriagesOnLine
-                        ? (lang === 'vi' ? 'Các tàu trên tuyến đã gắn tối đa toa (2 toa/tàu)' : 'Max carriages attached (2 per train)')
-                        : (lang === 'vi' ? 'Kho tạm hết toa xe! Mua thêm trong Shop hoặc nhận thưởng tuần' : 'Depot empty! Buy in Shop or weekly rewards')
-                    }
-                    className={`w-6 h-6 flex items-center justify-center rounded transition font-bold ${
-                      (isUnlimitedMode || (inventory.carriages > 0 && carriagesOnThisLine < maxCarriagesOnLine)) && trainsOnThisLine.length > 0
-                        ? 'bg-indigo-500/25 text-indigo-300 hover:bg-indigo-500 hover:text-white cursor-pointer active:scale-95 shadow-xs'
-                        : 'opacity-25 cursor-not-allowed text-neutral-500'
-                    }`}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+                  {(() => {
+                    const isDouble = line.type === 'double_decker';
+                    const availableCarriages = isDouble ? (inventory.doubleDeckerCarriages || 0) : inventory.carriages;
+                    const canAdd = (isUnlimitedMode || availableCarriages > 0) && trainsOnThisLine.length > 0 && (isUnlimitedMode || carriagesOnThisLine < maxCarriagesOnLine);
+                    return (
+                      <button
+                        disabled={!canAdd}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddCarriage(line.id);
+                        }}
+                        title={
+                          trainsOnThisLine.length === 0
+                            ? (lang === 'vi' ? 'Cần có tàu chạy trên tuyến trước khi gắn toa' : 'Deploy a train first before attaching carriages')
+                            : isUnlimitedMode
+                            ? (lang === 'vi' ? 'Gắn 1 toa xe (Vô hạn toa khả dụng)' : 'Attach 1 carriage (Unlimited mode enabled)')
+                            : availableCarriages > 0 && carriagesOnThisLine < maxCarriagesOnLine
+                            ? (lang === 'vi'
+                                ? (isDouble
+                                    ? `Gắn 1 toa 2 tầng vào tàu (Kho còn ${availableCarriages} toa, sức chứa +8 khách)`
+                                    : `Gắn 1 toa xe vào tàu (Kho còn ${availableCarriages} toa, sức chứa +4 khách)`)
+                                : (isDouble
+                                    ? `Attach 1 double-decker carriage (${availableCarriages} ready in depot, +8 capacity)`
+                                    : `Attach 1 carriage (${availableCarriages} ready in depot, +4 capacity)`))
+                            : carriagesOnThisLine >= maxCarriagesOnLine
+                            ? (lang === 'vi' ? 'Các tàu trên tuyến đã gắn tối đa toa (2 toa/tàu)' : 'Max carriages attached (2 per train)')
+                            : (lang === 'vi'
+                                ? (isDouble ? 'Kho tạm hết toa 2 tầng! Mua trong Shop ($350)' : 'Kho tạm hết toa xe! Mua thêm trong Shop hoặc nhận thưởng tuần')
+                                : (isDouble ? 'Depot empty! Buy double-decker carriage in Shop' : 'Depot empty! Buy in Shop or weekly rewards'))
+                        }
+                        className={`w-6 h-6 flex items-center justify-center rounded transition font-bold ${
+                          canAdd
+                            ? (isDouble
+                                ? 'bg-sky-500/25 text-sky-300 hover:bg-sky-500 hover:text-white cursor-pointer active:scale-95 shadow-xs'
+                                : 'bg-indigo-500/25 text-indigo-300 hover:bg-indigo-500 hover:text-white cursor-pointer active:scale-95 shadow-xs')
+                            : 'opacity-25 cursor-not-allowed text-neutral-500'
+                        }`}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
 

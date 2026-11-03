@@ -311,29 +311,46 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
                   <span className={`text-[10px] mr-0.5 font-semibold whitespace-nowrap ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
                     {lang === 'vi' ? 'Toa:' : 'Cars:'}
                   </span>
-                  <button
-                    type="button"
-                    disabled={carriagesOnSelected === 0}
-                    onClick={() => onRemoveCarriage(selectedLine.id)}
-                    title={lang === 'vi' ? 'Gỡ 1 toa phụ' : 'Remove 1 carriage'}
-                    className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-amber-500 transition ${
-                      isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
-                    }`}
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="font-mono font-bold px-1">{carriagesOnSelected}</span>
-                  <button
-                    type="button"
-                    disabled={(!isUnlimitedMode && inventory.carriages <= 0) || trainsOnSelected.length === 0}
-                    onClick={() => onAddCarriage(selectedLine.id)}
-                    title={lang === 'vi' ? 'Thêm 1 toa phụ' : 'Add 1 carriage'}
-                    className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-emerald-500 transition ${
-                      isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
-                    }`}
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
+                  {(() => {
+                    const isDouble = selectedLine.type === 'double_decker';
+                    const availableCarriages = isDouble ? (inventory.doubleDeckerCarriages || 0) : inventory.carriages;
+                    const canAdd = isUnlimitedMode || availableCarriages > 0;
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          disabled={carriagesOnSelected === 0}
+                          onClick={() => onRemoveCarriage(selectedLine.id)}
+                          title={lang === 'vi' ? (isDouble ? 'Gỡ 1 toa 2 tầng về kho' : 'Gỡ 1 toa phụ') : (isDouble ? 'Remove 1 double-decker carriage' : 'Remove 1 carriage')}
+                          className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-amber-500 transition ${
+                            isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
+                          }`}
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="font-mono font-bold px-1">{carriagesOnSelected}</span>
+                        <button
+                          type="button"
+                          disabled={(!canAdd) || trainsOnSelected.length === 0}
+                          onClick={() => onAddCarriage(selectedLine.id)}
+                          title={
+                            lang === 'vi'
+                              ? (isDouble
+                                  ? `Thêm 1 toa 2 tầng (+8 chỗ, kho còn ${availableCarriages})`
+                                  : `Thêm 1 toa phụ (+4 chỗ, kho còn ${availableCarriages})`)
+                              : (isDouble
+                                  ? `Add 1 double-decker carriage (+8 cap, stock: ${availableCarriages})`
+                                  : `Add 1 carriage (+4 cap, stock: ${availableCarriages})`)
+                          }
+                          className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-emerald-500 transition ${
+                            isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
+                          }`}
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -517,7 +534,7 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
           {/* Extra Carriages */}
           <div
             onClick={onOpenShop}
-            title={lang === 'vi' ? `Toa xe dự phòng: ${inventory.carriages} (Bấm để mở Shop)` : `Extra Carriages: ${inventory.carriages} (Click to open Shop)`}
+            title={lang === 'vi' ? `Toa xe tiêu chuẩn dự phòng: ${inventory.carriages} (Bấm để mở Shop)` : `Standard Carriages: ${inventory.carriages} (Click to open Shop)`}
             className={`flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer transition active:scale-95 ${
               isDark ? 'hover:bg-neutral-800' : 'hover:bg-neutral-100'
             }`}
@@ -531,6 +548,27 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
               {inventory.carriages}
             </span>
           </div>
+
+          {/* Double-Decker Carriages */}
+          {(inventory.doubleDeckerCarriages ?? 0) > 0 && (
+            <div
+              onClick={onOpenShop}
+              title={lang === 'vi' ? `Toa tàu 2 tầng (+8 chỗ): ${inventory.doubleDeckerCarriages} (Bấm để mở Shop)` : `Double-Decker Carriages: ${inventory.doubleDeckerCarriages} (Click to open Shop)`}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer transition active:scale-95 border border-sky-500/40 ${
+                isDark ? 'bg-sky-950/30 hover:bg-sky-900/40 text-sky-400' : 'bg-sky-50 hover:bg-sky-100 text-sky-600'
+              }`}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <rect x="2" y="5" width="20" height="14" rx="2" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <circle cx="6" cy="19" r="1" fill="currentColor" />
+                <circle cx="18" cy="19" r="1" fill="currentColor" />
+              </svg>
+              <span className="font-mono font-bold text-xs">
+                {inventory.doubleDeckerCarriages}
+              </span>
+            </div>
+          )}
 
           {/* Tunnels / Bridges (Interactive & operational) */}
           <div

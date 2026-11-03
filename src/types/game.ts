@@ -314,6 +314,7 @@ export interface GameInventory {
   interchangeTokens: number;
   tunnelTokens: number;
   doubleDeckerTrains?: number; // Feature 7: Thẻ tàu hai tầng
+  doubleDeckerCarriages?: number; // Toa xe 2 tầng riêng biệt (+40% giá so với toa thường)
   feederBuses?: number; // Feature 8: Xe buýt trung chuyển BRT
 }
 
