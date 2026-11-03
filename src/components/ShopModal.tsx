@@ -18,6 +18,8 @@ interface ShopModalProps {
   onBuyTunnel?: () => void;
   onBuyDoubleDecker?: () => void;
   onBuyFeederBus?: () => void;
+  hasTransitAdContract?: boolean;
+  onBuyTransitAdContract?: () => void;
 }
 
 export const ShopModal: React.FC<ShopModalProps> = ({
@@ -34,7 +36,9 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   onBuyInterchange,
   onBuyTunnel,
   onBuyDoubleDecker,
-  onBuyFeederBus
+  onBuyFeederBus,
+  hasTransitAdContract,
+  onBuyTransitAdContract
 }) => {
   const isDark = theme === 'dark';
 
@@ -139,6 +143,19 @@ export const ShopModal: React.FC<ShopModalProps> = ({
       currentCount: `${activeLinesCount}/${inventory.availableLines}`,
       countLabelVi: 'Đang dùng',
       countLabelEn: 'Active'
+    },
+    {
+      titleVi: 'Hợp Đồng Quảng Cáo Thân Tàu',
+      titleEn: 'Transit Advertising Deal',
+      descVi: 'Hợp đồng quảng cáo độc quyền, mang lại nguồn thu thụ động $200/ngày cho mỗi toa tàu đang vận hành.',
+      descEn: 'Exclusive transit advertising deal bringing $200/day passive revenue for every active train car.',
+      cost: 5000,
+      icon: <span className="text-base leading-none">📰</span>,
+      canBuy: money >= 5000 && !hasTransitAdContract && !!onBuyTransitAdContract,
+      action: onBuyTransitAdContract || (() => {}),
+      currentCount: hasTransitAdContract ? (lang === 'vi' ? 'Đã ký ✓' : 'Active ✓') : (lang === 'vi' ? 'Chưa ký' : 'Inactive'),
+      countLabelVi: 'Hợp đồng',
+      countLabelEn: 'Contract'
     }
   ];
 

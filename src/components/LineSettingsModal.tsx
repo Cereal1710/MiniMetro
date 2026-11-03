@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  Pencil
 } from 'lucide-react';
 import { MetroLine, Station, Train } from '../types/game';
 
@@ -25,6 +26,9 @@ interface LineSettingsModalProps {
   lang: 'vi' | 'en';
   onClose: () => void;
   onSave: (lineId: string, depotStationId: string, dispatchIntervalSeconds: number) => void;
+  onRenameLine?: (lineId: string, newName: string) => void;
+  onToggleCBTC?: (lineId: string) => void;
+  onUpgradeStationSmartIC?: (stationId: string) => void;
 }
 
 const SHORT_DAYS_VI = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -37,10 +41,16 @@ export const LineSettingsModal: React.FC<LineSettingsModalProps> = ({
   theme,
   lang,
   onClose,
-  onSave
+  onSave,
+  onRenameLine,
+  onToggleCBTC,
+  onUpgradeStationSmartIC
 }) => {
   const isDark = theme === 'dark';
   const stationMap = new Map<string, Station>(stations.map(s => [s.id, s]));
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(line.name);
 
   // Active tab state: 'settings' (Cài đặt) or 'performance' (Hiệu suất)
   const [activeTab, setActiveTab] = useState<'settings' | 'performance'>('settings');
@@ -139,7 +149,75 @@ export const LineSettingsModal: React.FC<LineSettingsModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold flex items-center gap-2">
-                <span>{line.name}</span>
+                {isEditingName ? (
+                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={nameInput}
+                      maxLength={30}
+                      autoFocus
+                      onChange={(e) => setNameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const trimmed = nameInput.trim();
+                          if (trimmed && onRenameLine) {
+                            onRenameLine(line.id, trimmed);
+                          }
+                          setIsEditingName(false);
+                        } else if (e.key === 'Escape') {
+                          setNameInput(line.name);
+                          setIsEditingName(false);
+                        }
+                      }}
+                      onBlur={() => {
+                        const trimmed = nameInput.trim();
+                        if (trimmed && onRenameLine) {
+                          onRenameLine(line.id, trimmed);
+                        }
+                        setIsEditingName(false);
+                      }}
+                      className="px-2 py-0.5 text-sm font-bold rounded bg-slate-900 border border-amber-400 text-white focus:outline-hidden w-40 shadow-inner"
+                      placeholder={lang === 'vi' ? 'Tên tuyến...' : 'Line name...'}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = nameInput.trim();
+                        if (trimmed && onRenameLine) {
+                          onRenameLine(line.id, trimmed);
+                        }
+                        setIsEditingName(false);
+                      }}
+                      className="p-1 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/40 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 group/modalname">
+                    <span
+                      className="cursor-pointer hover:text-amber-300 transition-colors"
+                      title={lang === 'vi' ? 'Bấm để đổi tên tuyến' : 'Click to rename line'}
+                      onClick={() => {
+                        setNameInput(line.name);
+                        setIsEditingName(true);
+                      }}
+                    >
+                      {nameInput}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNameInput(line.name);
+                        setIsEditingName(true);
+                      }}
+                      title={lang === 'vi' ? 'Đổi tên tuyến' : 'Rename line'}
+                      className="p-1 rounded opacity-60 hover:opacity-100 hover:bg-slate-700/50 transition cursor-pointer text-amber-300"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 <span
                   style={{ backgroundColor: `${line.color}25`, color: line.color }}
                   className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold"
@@ -277,12 +355,33 @@ export const LineSettingsModal: React.FC<LineSettingsModalProps> = ({
                               </span>
                             )}
                           </div>
-                          {isDepot && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold text-amber-400 shrink-0">
-                              <span>🏢 Depot</span>
-                              <Check className="w-3.5 h-3.5" />
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {onUpgradeStationSmartIC && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUpgradeStationSmartIC(sId);
+                                }}
+                                disabled={station?.hasSmartIC}
+                                title={station?.hasSmartIC ? (lang === 'vi' ? 'Đã lắp thẻ thông minh' : 'Smart IC Installed') : (lang === 'vi' ? 'Nâng cấp cửa thẻ thông minh: Giảm 50% thời gian đón trả khách' : 'Upgrade Contactless Smart IC gate: Cuts dwell time by 50%')}
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition ${
+                                  station?.hasSmartIC
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 cursor-default'
+                                    : 'bg-slate-700/80 hover:bg-emerald-600 text-slate-200 hover:text-white cursor-pointer'
+                                }`}
+                              >
+                                <span>💳</span>
+                                <span>{station?.hasSmartIC ? 'IC ✓' : (lang === 'vi' ? 'Lắp IC ($1.2k)' : 'Install IC ($1.2k)')}</span>
+                              </button>
+                            )}
+                            {isDepot && (
+                              <span className="flex items-center gap-1 text-[11px] font-bold text-amber-400 shrink-0">
+                                <span>🏢 Depot</span>
+                                <Check className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
@@ -324,6 +423,34 @@ export const LineSettingsModal: React.FC<LineSettingsModalProps> = ({
                     ? `Khi bấm "Xuất Depot / Phục Vụ", các đoàn tàu sẽ lần lượt xuất bến cách nhau ${dispatchInterval}s để tránh dồn toa và giảm số lần tàu dừng chờ vì nghẽn.`
                     : `Trains leaving Depot will space ${dispatchInterval}s apart to prevent bunching and reduce headway congestion stops.`}
                 </p>
+              </div>
+
+              {/* Section 3: CBTC Driverless Signal Automation (Feature 2) */}
+              <div className="pt-3 border-t border-slate-800/70">
+                <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center font-bold text-sm">
+                      📡
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-200">
+                        {lang === 'vi' ? 'Tín Hiệu Tự Hành CBTC (Driverless)' : 'Driverless CBTC Telemetry'}
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        {lang === 'vi' ? 'Giãn cách an toàn giảm 50% (0.18x), tăng gấp đôi mật độ tàu' : 'Cuts safe buffer by 50% (0.18x), doubles train density'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onToggleCBTC?.(line.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+                      line.hasCBTC ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                    }`}
+                  >
+                    {line.hasCBTC ? (lang === 'vi' ? 'Đang Bật ✓' : 'Enabled ✓') : (lang === 'vi' ? 'Nâng cấp ($3,500)' : 'Upgrade ($3,500)')}
+                  </button>
+                </div>
               </div>
             </div>
           )}

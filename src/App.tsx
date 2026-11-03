@@ -889,6 +889,7 @@ export default function App() {
               districts: engine.mapConfig.districts,
               inspectorState: engine.state.inspectorState,
               activeSurgeEvent: engine.state.activeSurgeEvent,
+              hasTransitAdContract: engine.state.stats?.hasTransitAdContract,
               isGameOver: engine.state.isGameOver,
               gameOverStationId: engine.state.gameOverStationId
             }
@@ -1475,6 +1476,14 @@ export default function App() {
     syncSnapshot();
   }, [syncSnapshot]);
 
+  const handleRenameLine = useCallback((lineId: string, newName: string) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.renameLine(lineId, newName)) {
+      syncSnapshot();
+    }
+  }, [syncSnapshot]);
+
   const handleRepairTrain = useCallback((trainId: string) => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -1487,6 +1496,30 @@ export default function App() {
     if (!engine) return;
     engine.deployStationSecurity(stationId);
     syncSnapshot();
+  }, [syncSnapshot]);
+
+  const handleToggleCBTC = useCallback((lineId: string) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.toggleLineCBTC(lineId)) {
+      syncSnapshot();
+    }
+  }, [syncSnapshot]);
+
+  const handleUpgradeStationSmartIC = useCallback((stationId: string) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.upgradeStationSmartIC(stationId)) {
+      syncSnapshot();
+    }
+  }, [syncSnapshot]);
+
+  const handleBuyTransitAdContract = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.toggleTransitAdContract()) {
+      syncSnapshot();
+    }
   }, [syncSnapshot]);
 
   const handleToggleDisableIncidents = useCallback(() => {
@@ -1714,6 +1747,7 @@ export default function App() {
             onOpenShop={() => setIsShopModalOpen(true)}
             onOpenLineSettings={(line) => setEditingSettingsLine(line)}
             onToggleLineDepot={handleToggleLineDepot}
+            onRenameLine={handleRenameLine}
           />
         )}
 
@@ -1806,6 +1840,7 @@ export default function App() {
               onOpenShop={() => setIsShopModalOpen(true)}
               onOpenBank={() => setIsBankModalOpen(true)}
               onToggleCreative={() => setIsCreativeToolbarOpen(prev => !prev)}
+              onRenameLine={handleRenameLine}
             />
           )}
 
@@ -1955,10 +1990,27 @@ export default function App() {
               high_speed: {
                 label: 'High Speed',
                 speedLabel: '+80%',
-                badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                badgeBg: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
                 icon: '🚅'
+              },
+              double_decker: {
+                label: 'Tàu 2 Tầng',
+                speedLabel: '+20% (2x Chỗ)',
+                badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+                icon: '🏢'
+              },
+              feeder_bus: {
+                label: 'Buýt BRT',
+                speedLabel: '-10% (0.90x)',
+                badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                icon: '🚌'
               }
-            }[lineType];
+            }[lineType] || {
+              label: 'Metro',
+              speedLabel: '1.0x',
+              badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+              icon: '🚇'
+            };
 
             return (
               <div
@@ -2052,6 +2104,9 @@ export default function App() {
           lang={lang}
           onClose={() => setEditingSettingsLine(null)}
           onSave={handleSaveLineSettings}
+          onRenameLine={handleRenameLine}
+          onToggleCBTC={handleToggleCBTC}
+          onUpgradeStationSmartIC={handleUpgradeStationSmartIC}
         />
       )}
 
@@ -2098,6 +2153,8 @@ export default function App() {
           onBuyTunnel={() => { engine?.buyTunnel(); syncSnapshot(); }}
           onBuyDoubleDecker={() => { engine?.buyDoubleDeckerTrain(); syncSnapshot(); }}
           onBuyFeederBus={() => { engine?.buyFeederBus(); syncSnapshot(); }}
+          hasTransitAdContract={state.stats?.hasTransitAdContract}
+          onBuyTransitAdContract={handleBuyTransitAdContract}
         />
       )}
 

@@ -92,6 +92,8 @@ export const TopLeftMapCards: React.FC<TopLeftMapCardsProps> = ({
     setActiveTab(prev => (prev === tab ? null : tab));
   };
 
+  const expoStation = stations.find(s => s.isExpoCentre);
+
   return (
     <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-30 flex flex-col gap-2 max-w-sm w-[92vw] sm:w-80 pointer-events-none select-none transition-all">
       {/* Sleek Floating Glass Pill Dock */}
@@ -172,6 +174,33 @@ export const TopLeftMapCards: React.FC<TopLeftMapCardsProps> = ({
           </>
         )}
       </div>
+
+      {/* Expo Week Active Banner (Feature 28) */}
+      {isHudVisible && expoStation && (
+        <div className={`pointer-events-auto p-2.5 rounded-xl border backdrop-blur-xl flex items-center justify-between gap-2 shadow-lg transition-all ${
+          isDark
+            ? 'bg-amber-950/40 border-amber-500/50 text-amber-200 shadow-amber-950/30'
+            : 'bg-amber-50/95 border-amber-300 text-amber-900 shadow-amber-100'
+        }`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base shrink-0">🌟</span>
+            <div className="min-w-0">
+              <div className="font-bold text-xs truncate flex items-center gap-1.5">
+                <span>{lang === 'vi' ? 'Tuần Lễ Hội Chợ Triển Lãm' : 'Expo Week'}</span>
+                <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-400 font-mono font-bold">
+                  {expoStation.expoRemainingDays || 7}d
+                </span>
+              </div>
+              <div className="text-[10px] opacity-80 truncate">
+                {expoStation.name} • {lang === 'vi' ? 'Thưởng $15,000 khi kết thúc' : '$15,000 completion reward'}
+              </div>
+            </div>
+          </div>
+          <span className="font-mono text-[11px] font-black text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30 shrink-0">
+            +220%
+          </span>
+        </div>
+      )}
 
       {/* Expanded Floating Popover Card (Single-elevation, clean, uncluttered) */}
       {isHudVisible && activeTab && (

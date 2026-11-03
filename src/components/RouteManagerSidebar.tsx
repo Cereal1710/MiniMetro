@@ -19,7 +19,9 @@ import {
   Settings,
   Building2,
   Play,
-  Pause
+  Pause,
+  Pencil,
+  Check
 } from 'lucide-react';
 import { MetroLine, GameInventory, Train, Station, StationShape, GameStats, MetroLineType } from '../types/game';
 
@@ -52,6 +54,7 @@ interface RouteManagerSidebarProps {
   onOpenShop: () => void;
   onOpenLineSettings?: (line: MetroLine) => void;
   onToggleLineDepot?: (lineId: string) => void;
+  onRenameLine?: (lineId: string, newName: string) => void;
 }
 
 // Station shape icon glyph for the route sequence
@@ -96,10 +99,14 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
   onClearAllStations,
   onOpenShop,
   onOpenLineSettings,
-  onToggleLineDepot
+  onToggleLineDepot,
+  onRenameLine
 }) => {
   const isDark = theme === 'dark';
   const stationMap = new Map<string, Station>(stations.map(s => [s.id, s]));
+
+  const [editingLineId, setEditingLineId] = React.useState<string | null>(null);
+  const [editingLineName, setEditingLineName] = React.useState<string>('');
 
   // When collapsed: render an ultra-sleek compact dock rail on the left
   if (isCollapsed) {
@@ -392,10 +399,76 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                       {idx + 1}
                     </button>
 
-                    {/* Line Name */}
-                    <span className="font-bold text-xs">
-                      {line.name}
-                    </span>
+                    {/* Line Name (Editable) */}
+                    {editingLineId === line.id ? (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={editingLineName}
+                          maxLength={30}
+                          autoFocus
+                          onChange={(e) => setEditingLineName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const trimmed = editingLineName.trim();
+                              if (trimmed && onRenameLine) {
+                                onRenameLine(line.id, trimmed);
+                              }
+                              setEditingLineId(null);
+                            } else if (e.key === 'Escape') {
+                              setEditingLineId(null);
+                            }
+                          }}
+                          onBlur={() => {
+                            const trimmed = editingLineName.trim();
+                            if (trimmed && onRenameLine) {
+                              onRenameLine(line.id, trimmed);
+                            }
+                            setEditingLineId(null);
+                          }}
+                          className="px-1.5 py-0.5 text-xs font-bold rounded bg-slate-900 border border-amber-400 text-white focus:outline-hidden w-28 shadow-inner"
+                          placeholder={lang === 'vi' ? 'Tên tuyến...' : 'Line name...'}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const trimmed = editingLineName.trim();
+                            if (trimmed && onRenameLine) {
+                              onRenameLine(line.id, trimmed);
+                            }
+                            setEditingLineId(null);
+                          }}
+                          className="p-1 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/40 cursor-pointer"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 group/name">
+                        <span
+                          className="font-bold text-xs truncate max-w-[110px] cursor-pointer hover:text-amber-300 transition-colors"
+                          title={lang === 'vi' ? 'Bấm để đổi tên tuyến' : 'Click to rename line'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingLineId(line.id);
+                            setEditingLineName(line.name);
+                          }}
+                        >
+                          {line.name}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingLineId(line.id);
+                            setEditingLineName(line.name);
+                          }}
+                          title={lang === 'vi' ? 'Đổi tên tuyến' : 'Rename line'}
+                          className="p-0.5 rounded opacity-40 group-hover/name:opacity-100 hover:bg-slate-700/50 transition cursor-pointer text-[10px]"
+                        >
+                          <Pencil className="w-2.5 h-2.5 text-amber-300" />
+                        </button>
+                      </div>
+                    )}
 
                     {/* Color Edit Button Shortcut */}
                     <button
@@ -579,14 +652,16 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                     <span className="font-mono text-[9px] text-emerald-400 font-semibold">
                       {(line.type || 'metro') === 'high_speed'
                         ? (lang === 'vi' ? 'Tốc độ +80%' : '+80% speed')
+                        : (line.type || 'metro') === 'double_decker'
+                        ? (lang === 'vi' ? 'Tàu 2 Tầng (+20% tốc độ, 2x sức chứa)' : 'Double-Decker (+20% speed, 2x cap)')
                         : (line.type || 'metro') === 'intercity'
                         ? (lang === 'vi' ? 'Tốc độ +20%' : '+20% speed')
                         : (line.type || 'metro') === 'feeder_bus'
-                        ? (lang === 'vi' ? 'Buýt BRT (Cầu vượt miễn phí)' : 'BRT Bus (Free bridges)')
+                        ? (lang === 'vi' ? 'Buýt BRT (6 chỗ/xe, -10% tốc độ, qua cầu miễn phí)' : 'BRT Bus (6 cap/bus, -10% speed, free bridges)')
                         : (lang === 'vi' ? 'Tốc độ Chuẩn (1.0x)' : 'Standard (1.0x)')}
                     </span>
                   </div>
-                  <div className={`grid grid-cols-4 gap-1 p-1 rounded-xl border ${
+                  <div className={`grid grid-cols-5 gap-1 p-1 rounded-xl border ${
                     isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-neutral-100 border-neutral-300'
                   }`}>
                     <button
@@ -596,13 +671,13 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                         onChangeLineType?.(line.id, 'metro');
                       }}
                       title={lang === 'vi' ? 'Metro: Tốc độ hiện tại (1.0x chuẩn)' : 'Metro: Standard baseline speed (1.0x)'}
-                      className={`py-1 px-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
+                      className={`py-1 px-0.5 rounded-lg text-[9px] font-bold flex flex-col items-center justify-center gap-0.5 transition cursor-pointer ${
                         (line.type || 'metro') === 'metro'
                           ? 'bg-emerald-600 text-white shadow-xs'
                           : 'opacity-60 hover:opacity-100 hover:bg-slate-700/30'
                       }`}
                     >
-                      <span>🚇</span>
+                      <span className="text-xs">🚇</span>
                       <span className="truncate">Metro</span>
                     </button>
 
@@ -613,13 +688,13 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                         onChangeLineType?.(line.id, 'intercity');
                       }}
                       title={lang === 'vi' ? 'Intercity: Nhanh hơn 20% so với metro' : 'Intercity: 20% faster than metro'}
-                      className={`py-1 px-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
+                      className={`py-1 px-0.5 rounded-lg text-[9px] font-bold flex flex-col items-center justify-center gap-0.5 transition cursor-pointer ${
                         line.type === 'intercity'
                           ? 'bg-blue-600 text-white shadow-xs'
                           : 'opacity-60 hover:opacity-100 hover:bg-slate-700/30'
                       }`}
                     >
-                      <span>🚆</span>
+                      <span className="text-xs">🚆</span>
                       <span className="truncate">Inter</span>
                     </button>
 
@@ -630,14 +705,31 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                         onChangeLineType?.(line.id, 'high_speed');
                       }}
                       title={lang === 'vi' ? 'High Speed: Nhanh hơn 80% so với metro' : 'High Speed: 80% faster than metro'}
-                      className={`py-1 px-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
+                      className={`py-1 px-0.5 rounded-lg text-[9px] font-bold flex flex-col items-center justify-center gap-0.5 transition cursor-pointer ${
                         line.type === 'high_speed'
                           ? 'bg-purple-600 text-white shadow-xs'
                           : 'opacity-60 hover:opacity-100 hover:bg-slate-700/30'
                       }`}
                     >
-                      <span>🚅</span>
+                      <span className="text-xs">🚅</span>
                       <span className="truncate">H.Spd</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onChangeLineType?.(line.id, 'double_decker');
+                      }}
+                      title={lang === 'vi' ? 'Tàu 2 Tầng: Tốc độ giống Intercity (+20%), sức chứa gấp đôi (12-24 khách)' : 'Double-Decker: +20% speed (like Intercity), 2x capacity'}
+                      className={`py-1 px-0.5 rounded-lg text-[9px] font-bold flex flex-col items-center justify-center gap-0.5 transition cursor-pointer ${
+                        line.type === 'double_decker'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'opacity-60 hover:opacity-100 hover:bg-slate-700/30'
+                      }`}
+                    >
+                      <span className="text-xs">🏢</span>
+                      <span className="truncate">2-Tầng</span>
                     </button>
 
                     <button
@@ -646,14 +738,14 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                         e.stopPropagation();
                         onChangeLineType?.(line.id, 'feeder_bus');
                       }}
-                      title={lang === 'vi' ? 'Buýt BRT: Qua cầu đường bộ vượt sông MIỄN PHÍ không tốn Hầm' : 'Feeder Bus: Free road bridge river crossing'}
-                      className={`py-1 px-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
+                      title={lang === 'vi' ? 'Buýt BRT: Tốc độ chậm hơn metro 10% (0.90x), qua cầu đường bộ vượt sông MIỄN PHÍ không tốn Hầm' : 'Feeder BRT: 10% slower, free bridge river crossing'}
+                      className={`py-1 px-0.5 rounded-lg text-[9px] font-bold flex flex-col items-center justify-center gap-0.5 transition cursor-pointer ${
                         line.type === 'feeder_bus'
                           ? 'bg-amber-600 text-white shadow-xs'
                           : 'opacity-60 hover:opacity-100 hover:bg-slate-700/30'
                       }`}
                     >
-                      <span>🚌</span>
+                      <span className="text-xs">🚌</span>
                       <span className="truncate">BRT</span>
                     </button>
                   </div>
@@ -722,70 +814,89 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                     </div>
                   </div>
 
-                  {/* Carriage Dispatcher */}
-                  <div className={`p-2 rounded-xl border flex flex-col justify-between ${
-                    isDark ? 'bg-slate-900/70 border-slate-700/70' : 'bg-white border-neutral-200'
-                  }`}>
-                    <div className="flex items-center justify-between text-[10px] font-bold opacity-80 mb-1">
-                      <div className="flex items-center gap-1">
-                        <Layers className="w-3 h-3 text-indigo-400" />
-                        <span>{lang === 'vi' ? 'Toa xe' : 'Carriages'}</span>
+                  {/* Carriage Dispatcher (Replaced for BRT) */}
+                  {line.type === 'feeder_bus' ? (
+                    <div className={`p-2 rounded-xl border flex flex-col justify-between ${
+                      isDark ? 'bg-amber-950/20 border-amber-500/30' : 'bg-amber-50/70 border-amber-200'
+                    }`}>
+                      <div className="flex items-center justify-between text-[10px] font-bold text-amber-400 mb-1">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs">🚌</span>
+                          <span>{lang === 'vi' ? 'Quy chuẩn BRT' : 'BRT Standard'}</span>
+                        </div>
+                      </div>
+                      <div className="text-[11px] font-bold text-amber-300 py-0.5">
+                        {lang === 'vi' ? '6 chỗ / Xe đơn' : '6 Cap / Single Bus'}
+                      </div>
+                      <div className="text-[9px] text-amber-400/80 font-medium">
+                        {lang === 'vi' ? 'Không gắn toa phụ' : 'No extra carriages'}
                       </div>
                     </div>
+                  ) : (
+                    <div className={`p-2 rounded-xl border flex flex-col justify-between ${
+                      isDark ? 'bg-slate-900/70 border-slate-700/70' : 'bg-white border-neutral-200'
+                    }`}>
+                      <div className="flex items-center justify-between text-[10px] font-bold opacity-80 mb-1">
+                        <div className="flex items-center gap-1">
+                          <Layers className="w-3 h-3 text-indigo-400" />
+                          <span>{lang === 'vi' ? 'Toa xe' : 'Carriages'}</span>
+                        </div>
+                      </div>
 
-                    <div className="flex items-center justify-between">
-                      {/* Minus Carriage */}
-                      <button
-                        disabled={carriagesOnThisLine === 0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRemoveCarriage(line.id);
-                        }}
-                        title={
-                          carriagesOnThisLine > 0
-                            ? (lang === 'vi' ? 'Tháo 1 toa xe về kho' : 'Recall 1 carriage to depot')
-                            : (lang === 'vi' ? 'Tuyến này chưa gắn toa xe thêm' : 'No extra carriage')
-                        }
-                        className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg font-bold transition touch-manipulation ${
-                          carriagesOnThisLine > 0
-                            ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white cursor-pointer active:scale-90'
-                            : 'opacity-25 cursor-not-allowed text-neutral-500'
-                        }`}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-between">
+                        {/* Minus Carriage */}
+                        <button
+                          disabled={carriagesOnThisLine === 0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveCarriage(line.id);
+                          }}
+                          title={
+                            carriagesOnThisLine > 0
+                              ? (lang === 'vi' ? 'Tháo 1 toa xe về kho' : 'Recall 1 carriage to depot')
+                              : (lang === 'vi' ? 'Tuyến này chưa gắn toa xe thêm' : 'No extra carriage')
+                          }
+                          className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg font-bold transition touch-manipulation ${
+                            carriagesOnThisLine > 0
+                              ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white cursor-pointer active:scale-90'
+                              : 'opacity-25 cursor-not-allowed text-neutral-500'
+                          }`}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
 
-                      {/* Carriage Count */}
-                      <span className="font-mono font-black text-xs sm:text-sm text-indigo-400 px-1.5">
-                        {carriagesOnThisLine}
-                      </span>
+                        {/* Carriage Count */}
+                        <span className="font-mono font-black text-xs sm:text-sm text-indigo-400 px-1.5">
+                          {carriagesOnThisLine}
+                        </span>
 
-                      {/* Plus Carriage */}
-                      <button
-                        disabled={inventory.carriages <= 0 || trainsOnThisLine.length === 0 || carriagesOnThisLine >= maxCarriagesOnLine}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAddCarriage(line.id);
-                        }}
-                        title={
-                          trainsOnThisLine.length === 0
-                            ? (lang === 'vi' ? 'Cần có tàu chạy trên tuyến trước khi gắn toa' : 'Deploy train first')
-                            : inventory.carriages > 0 && carriagesOnThisLine < maxCarriagesOnLine
-                            ? (lang === 'vi' ? `Gắn 1 toa xe (+4 khách, kho còn ${inventory.carriages})` : `Attach 1 carriage (+4 cap, ${inventory.carriages} in depot)`)
-                            : carriagesOnThisLine >= maxCarriagesOnLine
-                            ? (lang === 'vi' ? 'Đã tối đa 2 toa xe/mỗi tàu' : 'Max 2 carriages per train')
-                            : (lang === 'vi' ? 'Kho hết toa xe! Mua thêm trong Shop' : 'Depot empty! Buy in Shop')
-                        }
-                        className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg font-bold transition touch-manipulation ${
-                          inventory.carriages > 0 && trainsOnThisLine.length > 0 && carriagesOnThisLine < maxCarriagesOnLine
-                            ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500 hover:text-white cursor-pointer active:scale-90'
-                            : 'opacity-25 cursor-not-allowed text-neutral-500'
-                        }`}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                        {/* Plus Carriage */}
+                        <button
+                          disabled={inventory.carriages <= 0 || trainsOnThisLine.length === 0 || carriagesOnThisLine >= maxCarriagesOnLine}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddCarriage(line.id);
+                          }}
+                          title={
+                            trainsOnThisLine.length === 0
+                              ? (lang === 'vi' ? 'Cần có tàu chạy trên tuyến trước khi gắn toa' : 'Deploy train first')
+                              : inventory.carriages > 0 && carriagesOnThisLine < maxCarriagesOnLine
+                              ? (lang === 'vi' ? `Gắn 1 toa xe (+4 khách, kho còn ${inventory.carriages})` : `Attach 1 carriage (+4 cap, ${inventory.carriages} in depot)`)
+                              : carriagesOnThisLine >= maxCarriagesOnLine
+                              ? (lang === 'vi' ? 'Đã tối đa 2 toa xe/mỗi tàu' : 'Max 2 carriages per train')
+                              : (lang === 'vi' ? 'Kho hết toa xe! Mua thêm trong Shop' : 'Depot empty! Buy in Shop')
+                          }
+                          className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg font-bold transition touch-manipulation ${
+                            inventory.carriages > 0 && trainsOnThisLine.length > 0 && carriagesOnThisLine < maxCarriagesOnLine
+                              ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500 hover:text-white cursor-pointer active:scale-90'
+                              : 'opacity-25 cursor-not-allowed text-neutral-500'
+                          }`}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             );

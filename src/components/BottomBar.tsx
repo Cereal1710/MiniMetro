@@ -164,69 +164,81 @@ export const BottomBar: React.FC<BottomBarProps> = ({
               </div>
 
               {/* Carriage Stepper: Bỏ toa / Số toa / Gắn toa */}
-              <div
-                className={`flex items-center rounded-lg px-1 py-0.5 border text-xs gap-1 ${
-                  isDark ? 'bg-neutral-900/90 border-neutral-700/80' : 'bg-white/90 border-neutral-300'
-                }`}
-                title={lang === 'vi' ? 'Gắn hoặc thu hồi toa xe chở khách trên tuyến này' : 'Manage carriages on this line'}
-              >
-                {/* Bỏ toa button */}
-                <button
-                  disabled={carriagesOnThisLine === 0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveCarriage(line.id);
-                  }}
-                  title={
-                    carriagesOnThisLine > 0
-                      ? (lang === 'vi' ? 'Bỏ 1 toa xe khỏi tàu (thu hồi về kho)' : 'Recall 1 carriage to depot')
-                      : (lang === 'vi' ? 'Tuyến này chưa gắn thêm toa xe nào' : 'No extra carriages on this line')
-                  }
-                  className={`w-6 h-6 flex items-center justify-center rounded transition font-bold ${
-                    carriagesOnThisLine > 0
-                      ? 'bg-amber-500/25 text-amber-400 hover:bg-amber-500 hover:text-white cursor-pointer active:scale-95 shadow-xs'
-                      : 'opacity-25 cursor-not-allowed text-neutral-500'
-                  }`}
-                >
-                  <Minus className="w-3.5 h-3.5" />
-                </button>
-
-                {/* Carriage count display */}
+              {/* Carriage Controls (Replaced with 6-cap badge for BRT) */}
+              {line.type === 'feeder_bus' ? (
                 <div
-                  className="flex items-center gap-1 font-mono font-bold text-xs px-1 min-w-[28px] justify-center"
-                  title={lang === 'vi' ? `${carriagesOnThisLine} toa xe gắn thêm trên tuyến (Tăng sức chứa +4 khách/toa)` : `${carriagesOnThisLine} extra carriages on line`}
-                >
-                  <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>{carriagesOnThisLine}</span>
-                </div>
-
-                {/* Gắn toa button */}
-                <button
-                  disabled={(!isUnlimitedMode && inventory.carriages <= 0) || trainsOnThisLine.length === 0 || (!isUnlimitedMode && carriagesOnThisLine >= maxCarriagesOnLine)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAddCarriage(line.id);
-                  }}
-                  title={
-                    trainsOnThisLine.length === 0
-                      ? (lang === 'vi' ? 'Cần có tàu chạy trên tuyến trước khi gắn toa' : 'Deploy a train first before attaching carriages')
-                      : isUnlimitedMode
-                      ? (lang === 'vi' ? 'Gắn 1 toa xe (Vô hạn toa khả dụng, +4 khách)' : 'Attach 1 carriage (Unlimited mode enabled)')
-                      : inventory.carriages > 0 && carriagesOnThisLine < maxCarriagesOnLine
-                      ? (lang === 'vi' ? `Gắn 1 toa xe vào tàu (Kho còn ${inventory.carriages} toa, sức chứa +4 khách)` : `Attach 1 carriage (${inventory.carriages} ready in depot, +4 capacity)`)
-                      : carriagesOnThisLine >= maxCarriagesOnLine
-                      ? (lang === 'vi' ? 'Các tàu trên tuyến đã gắn tối đa toa (2 toa/tàu)' : 'Max carriages attached (2 per train)')
-                      : (lang === 'vi' ? 'Kho tạm hết toa xe! Mua thêm trong Shop hoặc nhận thưởng tuần' : 'Depot empty! Buy in Shop or weekly rewards')
-                  }
-                  className={`w-6 h-6 flex items-center justify-center rounded transition font-bold ${
-                    (isUnlimitedMode || (inventory.carriages > 0 && carriagesOnThisLine < maxCarriagesOnLine)) && trainsOnThisLine.length > 0
-                      ? 'bg-indigo-500/25 text-indigo-300 hover:bg-indigo-500 hover:text-white cursor-pointer active:scale-95 shadow-xs'
-                      : 'opacity-25 cursor-not-allowed text-neutral-500'
+                  className={`flex items-center gap-1 font-mono font-bold text-[10px] px-2 py-1 rounded-lg border ${
+                    isDark ? 'bg-amber-500/15 border-amber-500/30 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800'
                   }`}
+                  title={lang === 'vi' ? 'Xe buýt BRT chở tối đa 6 người/xe (không gắn toa phụ)' : 'BRT bus holds 6 cap/bus (no extra carriages)'}
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
+                  <span>🚌 6 chỗ</span>
+                </div>
+              ) : (
+                <div
+                  className={`flex items-center rounded-lg px-1 py-0.5 border text-xs gap-1 ${
+                    isDark ? 'bg-neutral-900/90 border-neutral-700/80' : 'bg-white/90 border-neutral-300'
+                  }`}
+                  title={lang === 'vi' ? 'Gắn hoặc thu hồi toa xe chở khách trên tuyến này' : 'Manage carriages on this line'}
+                >
+                  {/* Bỏ toa button */}
+                  <button
+                    disabled={carriagesOnThisLine === 0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveCarriage(line.id);
+                    }}
+                    title={
+                      carriagesOnThisLine > 0
+                        ? (lang === 'vi' ? 'Bỏ 1 toa xe khỏi tàu (thu hồi về kho)' : 'Recall 1 carriage to depot')
+                        : (lang === 'vi' ? 'Tuyến này chưa gắn thêm toa xe nào' : 'No extra carriages on this line')
+                    }
+                    className={`w-6 h-6 flex items-center justify-center rounded transition font-bold ${
+                      carriagesOnThisLine > 0
+                        ? 'bg-amber-500/25 text-amber-400 hover:bg-amber-500 hover:text-white cursor-pointer active:scale-95 shadow-xs'
+                        : 'opacity-25 cursor-not-allowed text-neutral-500'
+                    }`}
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Carriage count display */}
+                  <div
+                    className="flex items-center gap-1 font-mono font-bold text-xs px-1 min-w-[28px] justify-center"
+                    title={lang === 'vi' ? `${carriagesOnThisLine} toa xe gắn thêm trên tuyến (Tăng sức chứa +4 khách/toa)` : `${carriagesOnThisLine} extra carriages on line`}
+                  >
+                    <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{carriagesOnThisLine}</span>
+                  </div>
+
+                  {/* Gắn toa button */}
+                  <button
+                    disabled={(!isUnlimitedMode && inventory.carriages <= 0) || trainsOnThisLine.length === 0 || (!isUnlimitedMode && carriagesOnThisLine >= maxCarriagesOnLine)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddCarriage(line.id);
+                    }}
+                    title={
+                      trainsOnThisLine.length === 0
+                        ? (lang === 'vi' ? 'Cần có tàu chạy trên tuyến trước khi gắn toa' : 'Deploy a train first before attaching carriages')
+                        : isUnlimitedMode
+                        ? (lang === 'vi' ? 'Gắn 1 toa xe (Vô hạn toa khả dụng, +4 khách)' : 'Attach 1 carriage (Unlimited mode enabled)')
+                        : inventory.carriages > 0 && carriagesOnThisLine < maxCarriagesOnLine
+                        ? (lang === 'vi' ? `Gắn 1 toa xe vào tàu (Kho còn ${inventory.carriages} toa, sức chứa +4 khách)` : `Attach 1 carriage (${inventory.carriages} ready in depot, +4 capacity)`)
+                        : carriagesOnThisLine >= maxCarriagesOnLine
+                        ? (lang === 'vi' ? 'Các tàu trên tuyến đã gắn tối đa toa (2 toa/tàu)' : 'Max carriages attached (2 per train)')
+                        : (lang === 'vi' ? 'Kho tạm hết toa xe! Mua thêm trong Shop hoặc nhận thưởng tuần' : 'Depot empty! Buy in Shop or weekly rewards')
+                    }
+                    className={`w-6 h-6 flex items-center justify-center rounded transition font-bold ${
+                      (isUnlimitedMode || (inventory.carriages > 0 && carriagesOnThisLine < maxCarriagesOnLine)) && trainsOnThisLine.length > 0
+                        ? 'bg-indigo-500/25 text-indigo-300 hover:bg-indigo-500 hover:text-white cursor-pointer active:scale-95 shadow-xs'
+                        : 'opacity-25 cursor-not-allowed text-neutral-500'
+                    }`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Delete Line Button */}
               <button

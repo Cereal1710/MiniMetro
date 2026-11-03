@@ -13,7 +13,9 @@ import {
   Building2,
   X,
   Zap,
-  ShoppingBag
+  ShoppingBag,
+  Pencil,
+  Check
 } from 'lucide-react';
 import { MetroLine, GameInventory, Train, Station, MetroLineType, StationShape } from '../types/game';
 
@@ -44,6 +46,7 @@ interface MiniMetroDockProps {
   onOpenShop?: () => void;
   onOpenBank?: () => void;
   onToggleCreative?: () => void;
+  onRenameLine?: (lineId: string, newName: string) => void;
 }
 
 function getShapeGlyph(shape?: StationShape): string {
@@ -85,10 +88,13 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
   onToggleRouteManager,
   onOpenShop,
   onOpenBank,
-  onToggleCreative
+  onToggleCreative,
+  onRenameLine
 }) => {
   const isDark = theme === 'dark';
   const [activePopupLineId, setActivePopupLineId] = useState<string | null>(null);
+  const [isEditingLineName, setIsEditingLineName] = useState(false);
+  const [lineNameInput, setLineNameInput] = useState('');
 
   const selectedLine = lines.find(l => l.id === (activePopupLineId || selectedLineId));
   const trainsOnSelected = selectedLine ? trains.filter(t => t.lineId === selectedLine.id) : [];
@@ -108,86 +114,91 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
           }`}
           style={{ borderTopColor: selectedLine.color }}
         >
-          {/* Row 1: Line Identity, Steppers, & Quick Actions */}
-          <div className="flex items-center justify-between gap-3 w-full">
-            <div className="flex items-center gap-2">
+          {/* Row 1: Line Identity (Left) & Quick Action Buttons (Right) */}
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2 min-w-0">
               <span
                 className="w-4 h-4 rounded-full inline-block shadow-xs shrink-0 ring-2 ring-black/10"
                 style={{ backgroundColor: selectedLine.color }}
               />
-              <span className="font-black text-sm">{selectedLine.name}</span>
-              <span className={`text-[10px] font-mono ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+              {/* Line Name (Editable) */}
+              {isEditingLineName ? (
+                <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="text"
+                    value={lineNameInput}
+                    maxLength={30}
+                    autoFocus
+                    onChange={(e) => setLineNameInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const trimmed = lineNameInput.trim();
+                        if (trimmed && onRenameLine) {
+                          onRenameLine(selectedLine.id, trimmed);
+                        }
+                        setIsEditingLineName(false);
+                      } else if (e.key === 'Escape') {
+                        setIsEditingLineName(false);
+                      }
+                    }}
+                    onBlur={() => {
+                      const trimmed = lineNameInput.trim();
+                      if (trimmed && onRenameLine) {
+                        onRenameLine(selectedLine.id, trimmed);
+                      }
+                      setIsEditingLineName(false);
+                    }}
+                    className={`px-2 py-0.5 text-xs font-bold rounded border ${
+                      isDark ? 'bg-neutral-800 border-amber-400 text-white' : 'bg-neutral-100 border-amber-500 text-neutral-900'
+                    } focus:outline-hidden w-28 sm:w-32`}
+                    placeholder={lang === 'vi' ? 'Tên tuyến...' : 'Line name...'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = lineNameInput.trim();
+                      if (trimmed && onRenameLine) {
+                        onRenameLine(selectedLine.id, trimmed);
+                      }
+                      setIsEditingLineName(false);
+                    }}
+                    className="p-1 rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/40 cursor-pointer shrink-0"
+                  >
+                    <Check className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 group/dockname min-w-0">
+                  <span
+                    className="font-black text-sm cursor-pointer hover:text-amber-400 transition-colors whitespace-nowrap truncate max-w-[130px]"
+                    title={lang === 'vi' ? 'Bấm để đổi tên tuyến' : 'Click to rename line'}
+                    onClick={() => {
+                      setLineNameInput(selectedLine.name);
+                      setIsEditingLineName(true);
+                    }}
+                  >
+                    {selectedLine.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLineNameInput(selectedLine.name);
+                      setIsEditingLineName(true);
+                    }}
+                    title={lang === 'vi' ? 'Đổi tên tuyến' : 'Rename line'}
+                    className="p-0.5 rounded opacity-60 hover:opacity-100 hover:bg-neutral-700/50 transition cursor-pointer text-amber-400 shrink-0"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+              <span className={`text-[10px] font-mono whitespace-nowrap shrink-0 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
                 ({selectedLine.stationIds.length} {lang === 'vi' ? 'ga' : 'stations'})
               </span>
             </div>
 
-            {/* Steppers & Close */}
-            <div className="flex items-center gap-1.5">
-              {/* Trains Stepper */}
-              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border ${
-                isDark ? 'bg-neutral-800/90 border-neutral-700' : 'bg-neutral-100 border-neutral-300 text-neutral-900'
-              }`}>
-                <span className={`text-[10px] mr-0.5 font-semibold ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-                  {lang === 'vi' ? 'Tàu:' : 'Trains:'}
-                </span>
-                <button
-                  type="button"
-                  disabled={trainsOnSelected.length === 0}
-                  onClick={() => onRemoveTrain(selectedLine.id)}
-                  title={lang === 'vi' ? 'Thu hồi 1 tàu' : 'Recall 1 train'}
-                  className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-amber-500 transition ${
-                    isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
-                  }`}
-                >
-                  <Minus className="w-3 h-3" />
-                </button>
-                <span className="font-mono font-bold px-1">{trainsOnSelected.length}</span>
-                <button
-                  type="button"
-                  disabled={!isUnlimitedMode && inventory.unassignedTrains <= 0}
-                  onClick={() => onDeployTrain(selectedLine.id)}
-                  title={lang === 'vi' ? 'Thêm 1 tàu' : 'Deploy 1 train'}
-                  className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-emerald-500 transition ${
-                    isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
-                  }`}
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
-
-              {/* Carriages Stepper */}
-              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border ${
-                isDark ? 'bg-neutral-800/90 border-neutral-700' : 'bg-neutral-100 border-neutral-300 text-neutral-900'
-              }`}>
-                <span className={`text-[10px] mr-0.5 font-semibold ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-                  {lang === 'vi' ? 'Toa:' : 'Cars:'}
-                </span>
-                <button
-                  type="button"
-                  disabled={carriagesOnSelected === 0}
-                  onClick={() => onRemoveCarriage(selectedLine.id)}
-                  title={lang === 'vi' ? 'Gỡ 1 toa phụ' : 'Remove 1 carriage'}
-                  className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-amber-500 transition ${
-                    isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
-                  }`}
-                >
-                  <Minus className="w-3 h-3" />
-                </button>
-                <span className="font-mono font-bold px-1">{carriagesOnSelected}</span>
-                <button
-                  type="button"
-                  disabled={(!isUnlimitedMode && inventory.carriages <= 0) || trainsOnSelected.length === 0}
-                  onClick={() => onAddCarriage(selectedLine.id)}
-                  title={lang === 'vi' ? 'Thêm 1 toa phụ' : 'Add 1 carriage'}
-                  className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-emerald-500 transition ${
-                    isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
-                  }`}
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
-
-              {/* Actions: Color, Settings, Delete, Close */}
+            {/* Actions: Color, Settings, Delete, Close */}
+            <div className="flex items-center gap-1 shrink-0">
               {onEditLineColor && (
                 <button
                   type="button"
@@ -233,7 +244,7 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
                   setActivePopupLineId(null);
                   onSelectLine(null);
                 }}
-                className={`p-1 cursor-pointer transition ml-1 ${
+                className={`p-1 cursor-pointer transition ml-0.5 ${
                   isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'
                 }`}
               >
@@ -242,45 +253,88 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
             </div>
           </div>
 
-          {/* Row 2: Train Type Selector & Depot Controls (From Old Left Bar) */}
-          <div className={`flex items-center justify-between gap-2 pt-1.5 border-t flex-wrap ${
+          {/* Row 2: Steppers (Trains, Carriages) & Depot Controls */}
+          <div className={`flex items-center justify-between gap-2 pt-1.5 border-t w-full ${
             isDark ? 'border-neutral-800/80' : 'border-neutral-200'
           }`}>
-            {/* Train Type Selector */}
-            {onChangeLineType && (
-              <div className={`flex items-center gap-1 p-0.5 rounded-lg border ${
-                isDark ? 'bg-neutral-800/60 border-neutral-700/60' : 'bg-neutral-100 border-neutral-300'
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Trains Stepper */}
+              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border ${
+                isDark ? 'bg-neutral-800/90 border-neutral-700' : 'bg-neutral-100 border-neutral-300 text-neutral-900'
               }`}>
-                {(['metro', 'intercity', 'high_speed'] as MetroLineType[]).map((type) => {
-                  const currentType = selectedLine.type || 'metro';
-                  const isCur = currentType === type;
-                  const label = {
-                    metro: { text: 'Metro', speed: '1x', icon: '🚇' },
-                    intercity: { text: 'Intercity', speed: '+20%', icon: '🚆' },
-                    high_speed: { text: 'H.Speed', speed: '+80%', icon: '🚅' }
-                  }[type];
-
-                  return (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => onChangeLineType(selectedLine.id, type)}
-                      title={`${lang === 'vi' ? 'Tốc độ' : 'Speed'}: ${label.speed}`}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 ${
-                        isCur
-                          ? 'bg-emerald-600 text-white shadow-xs'
-                          : isDark
-                          ? 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50'
-                          : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200'
-                      }`}
-                    >
-                      <span>{label.icon}</span>
-                      <span>{label.text}</span>
-                    </button>
-                  );
-                })}
+                <span className={`text-[10px] mr-0.5 font-semibold whitespace-nowrap ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+                  {lang === 'vi' ? 'Tàu:' : 'Trains:'}
+                </span>
+                <button
+                  type="button"
+                  disabled={trainsOnSelected.length === 0}
+                  onClick={() => onRemoveTrain(selectedLine.id)}
+                  title={lang === 'vi' ? 'Thu hồi 1 tàu' : 'Recall 1 train'}
+                  className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-amber-500 transition ${
+                    isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
+                  }`}
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <span className="font-mono font-bold px-1">{trainsOnSelected.length}</span>
+                <button
+                  type="button"
+                  disabled={!isUnlimitedMode && inventory.unassignedTrains <= 0}
+                  onClick={() => onDeployTrain(selectedLine.id)}
+                  title={selectedLine.type === 'feeder_bus' ? (lang === 'vi' ? 'Thêm 1 xe buýt (6 chỗ)' : 'Deploy 1 bus (6 cap)') : (lang === 'vi' ? 'Thêm 1 tàu' : 'Deploy 1 train')}
+                  className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-emerald-500 transition ${
+                    isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
+                  }`}
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
               </div>
-            )}
+
+              {/* Carriages Stepper / BRT Capacity Badge */}
+              {selectedLine.type === 'feeder_bus' ? (
+                <div
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border ${
+                    isDark ? 'bg-neutral-800/40 border-neutral-700/60 text-amber-300/90' : 'bg-amber-50/80 border-amber-200 text-amber-800'
+                  }`}
+                  title={lang === 'vi' ? '1 xe buýt BRT chở tối đa 6 người' : '1 BRT bus carries up to 6 passengers'}
+                >
+                  <span className="text-[10px] font-bold whitespace-nowrap">
+                    🚌 {lang === 'vi' ? '6 chỗ / Không gắn toa' : '6 Cap / No Carriages'}
+                  </span>
+                </div>
+              ) : (
+                <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border ${
+                  isDark ? 'bg-neutral-800/90 border-neutral-700' : 'bg-neutral-100 border-neutral-300 text-neutral-900'
+                }`}>
+                  <span className={`text-[10px] mr-0.5 font-semibold whitespace-nowrap ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+                    {lang === 'vi' ? 'Toa:' : 'Cars:'}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={carriagesOnSelected === 0}
+                    onClick={() => onRemoveCarriage(selectedLine.id)}
+                    title={lang === 'vi' ? 'Gỡ 1 toa phụ' : 'Remove 1 carriage'}
+                    className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-amber-500 transition ${
+                      isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
+                    }`}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="font-mono font-bold px-1">{carriagesOnSelected}</span>
+                  <button
+                    type="button"
+                    disabled={(!isUnlimitedMode && inventory.carriages <= 0) || trainsOnSelected.length === 0}
+                    onClick={() => onAddCarriage(selectedLine.id)}
+                    title={lang === 'vi' ? 'Thêm 1 toa phụ' : 'Add 1 carriage'}
+                    className={`w-5 h-5 flex items-center justify-center rounded disabled:opacity-30 cursor-pointer text-emerald-500 transition ${
+                      isDark ? 'bg-neutral-700 hover:bg-neutral-600' : 'bg-neutral-200 hover:bg-neutral-300'
+                    }`}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Depot Status & Recall Button */}
             {onToggleLineDepot && (
@@ -288,7 +342,7 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
                 type="button"
                 onClick={() => onToggleLineDepot(selectedLine.id)}
                 title={lang === 'vi' ? 'Thu hồi toàn bộ đoàn tàu về Depot' : 'Recall all trains to Depot'}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition cursor-pointer active:scale-95 border ${
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition cursor-pointer active:scale-95 border shrink-0 ${
                   selectedLine.isDepotRecalled
                     ? 'bg-amber-500/20 text-amber-500 border-amber-500/40 hover:bg-amber-500/30'
                     : isDark
@@ -297,7 +351,7 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
                 }`}
               >
                 <Building2 className="w-3 h-3" />
-                <span>
+                <span className="whitespace-nowrap">
                   {selectedLine.isDepotRecalled
                     ? (lang === 'vi' ? 'Đang ở Depot' : 'In Depot')
                     : (lang === 'vi' ? 'Về Depot' : 'Send to Depot')}
@@ -305,6 +359,44 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
               </button>
             )}
           </div>
+
+          {/* Row 3: Train Type Selector */}
+          {onChangeLineType && (
+            <div className={`flex items-center gap-1 p-0.5 rounded-lg border w-fit overflow-x-auto scrollbar-none ${
+              isDark ? 'bg-neutral-800/60 border-neutral-700/60' : 'bg-neutral-100 border-neutral-300'
+            }`}>
+              {(['metro', 'intercity', 'high_speed', 'double_decker', 'feeder_bus'] as MetroLineType[]).map((type) => {
+                const currentType = selectedLine.type || 'metro';
+                const isCur = currentType === type;
+                const label = {
+                  metro: { text: 'Metro', speed: '1.0x', descVi: 'Chuẩn 1.0x', icon: '🚇' },
+                  intercity: { text: 'Intercity', speed: '+20%', descVi: 'Nhanh hơn 20%', icon: '🚆' },
+                  high_speed: { text: 'H.Speed', speed: '+80%', descVi: 'Nhanh hơn 80%', icon: '🚅' },
+                  double_decker: { text: '2-Tầng', speed: '+20%', descVi: 'Tàu 2 tầng (+20% tốc độ, x2 sức chứa)', icon: '🏢' },
+                  feeder_bus: { text: 'BRT', speed: '-10%', descVi: 'Buýt BRT (6 chỗ/xe, -10% tốc độ, qua cầu miễn phí)', icon: '🚌' }
+                }[type];
+
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => onChangeLineType(selectedLine.id, type)}
+                    title={`${label.descVi || label.text} (${lang === 'vi' ? 'Tốc độ' : 'Speed'}: ${label.speed})`}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 whitespace-nowrap ${
+                      isCur
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : isDark
+                        ? 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50'
+                        : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200'
+                    }`}
+                  >
+                    <span>{label.icon}</span>
+                    <span>{label.text}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Row 3: Route Station Sequence List (With Remove 'X') */}
           {selectedLine.stationIds.length > 0 && (

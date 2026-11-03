@@ -95,6 +95,7 @@ export interface RenderOptions {
   districts?: MapDistrictLabel[];
   inspectorState?: InspectorState;
   activeSurgeEvent?: UrbanSurgeEvent | null;
+  hasTransitAdContract?: boolean;
   isGameOver?: boolean;
   gameOverStationId?: string | null;
 }
@@ -998,6 +999,14 @@ export function renderScene(
     const line = lines.find(l => l.id === train.lineId);
     if (!line || line.stationIds.length < 2) return;
 
+    const isBus = line.type === 'feeder_bus';
+    const isDouble = !!train.isDoubleDecker || line.type === 'double_decker';
+
+    const carLength = isDouble ? 34 : isBus ? 28 : 30;
+    const carWidth = isDouble ? 16.5 : isBus ? 13.5 : 14.5;
+    const gap = isBus ? 4.5 : 5.0;
+    const carSpacing = carLength + gap;
+
     const geom = lineGeometries.get(train.lineId);
     if (!geom || !geom.segments || geom.segments.length === 0) return;
 
@@ -1014,7 +1023,7 @@ export function renderScene(
       ? progress * segLen
       : (1 - progress) * segLen;
 
-    const totalCars = 1 + (train.carriagesCount || 0);
+    const totalCars = isBus ? 1 : 1 + (train.carriagesCount || 0);
     interface CarTransform {
       x: number;
       y: number;
@@ -1120,22 +1129,45 @@ export function renderScene(
       const currFrontX = currCar.x + Math.cos(currCar.angle) * (carLength / 2);
       const currFrontY = currCar.y + Math.sin(currCar.angle) * (carLength / 2);
 
-      // Black connector link matching the train's black outline
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 3.2;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(prevRearX, prevRearY);
-      ctx.lineTo(currFrontX, currFrontY);
-      ctx.stroke();
+      if (isBus) {
+        // Articulated rubber accordion bellows for bendy BRT buses
+        const midX = (prevRearX + currFrontX) / 2;
+        const midY = (prevRearY + currFrontY) / 2;
+        ctx.strokeStyle = '#0F172A';
+        ctx.lineWidth = carWidth * 0.72;
+        ctx.lineCap = 'butt';
+        ctx.beginPath();
+        ctx.moveTo(prevRearX, prevRearY);
+        ctx.lineTo(currFrontX, currFrontY);
+        ctx.stroke();
+
+        // Ribbed pleats on the bellows
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.moveTo(midX - 1.0, midY - 3.5);
+        ctx.lineTo(midX - 1.0, midY + 3.5);
+        ctx.moveTo(midX + 1.0, midY - 3.5);
+        ctx.lineTo(midX + 1.0, midY + 3.5);
+        ctx.stroke();
+      } else {
+        // Black metal coupler link
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 3.2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(prevRearX, prevRearY);
+        ctx.lineTo(currFrontX, currFrontY);
+        ctx.stroke();
+      }
     }
 
     // Soft dim warm yellow headlight beam projecting in front of the lead car (direction indicator)
     if (carTransforms.length > 0) {
       const lead = carTransforms[0];
       const frontX = carLength / 2;
-      const beamLength = 28;
-      const beamHalfWidth = 9.5;
+      const beamLength = isBus ? 22 : isDouble ? 34 : 28;
+      const beamHalfWidth = isBus ? 7.5 : isDouble ? 11.5 : 9.5;
 
       ctx.save();
       ctx.translate(lead.x, lead.y);
@@ -1143,7 +1175,7 @@ export function renderScene(
 
       // Conical headlight beam with soft, muted warm yellow gradient
       const beamGrad = ctx.createRadialGradient(frontX, 0, 2, frontX + beamLength * 0.75, 0, beamLength);
-      beamGrad.addColorStop(0, 'rgba(217, 160, 24, 0.32)'); // Soft dim warm amber/yellow
+      beamGrad.addColorStop(0, isBus ? 'rgba(245, 158, 11, 0.35)' : 'rgba(217, 160, 24, 0.32)');
       beamGrad.addColorStop(0.5, 'rgba(234, 179, 8, 0.16)');
       beamGrad.addColorStop(1, 'rgba(234, 179, 8, 0.0)');
 
@@ -1166,43 +1198,161 @@ export function renderScene(
       ctx.translate(car.x, car.y);
       ctx.rotate(car.angle);
 
-      const isBus = line.type === 'feeder_bus';
-      const isDouble = !!train.isDoubleDecker;
-
-      // Clean solid vehicle body in line color
-      ctx.fillStyle = line.color;
-      ctx.beginPath();
       if (isBus) {
-        // Bus body silhouette with rounded front cab
-        ctx.roundRect(-carLength / 2, -carWidth / 2, carLength, carWidth, [3.2, 5.5, 5.5, 3.2]);
+        // --- 🚌 FEEDER BUS (BRT) DEDICATED DESIGN ---
+        // 1. Exterior black rubber tires protruding on sides
+        ctx.fillStyle = '#0F172A';
+        // Front tires
+        ctx.fillRect(carLength / 2 - 7.5, -carWidth / 2 - 1.2, 5.2, 2.0);
+        ctx.fillRect(carLength / 2 - 7.5, carWidth / 2 - 0.8, 5.2, 2.0);
+        // Rear tires
+        ctx.fillRect(-carLength / 2 + 3.0, -carWidth / 2 - 1.2, 5.2, 2.0);
+        ctx.fillRect(-carLength / 2 + 3.0, carWidth / 2 - 0.8, 5.2, 2.0);
+
+        // 2. Bus body in route color with rounded front cab
+        ctx.fillStyle = line.color;
+        ctx.beginPath();
+        ctx.roundRect(-carLength / 2, -carWidth / 2, carLength, carWidth, [2.5, 5.0, 5.0, 2.5]);
+        ctx.fill();
+
+        // Solid crisp outline
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        // 3. Panoramic curved windshield (dark tinted glass)
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+        ctx.beginPath();
+        ctx.roundRect(carLength / 2 - 5.5, -carWidth / 2 + 1.8, 3.8, carWidth - 3.6, [1, 3, 3, 1]);
+        ctx.fill();
+
+        // 4. Amber LED destination route head-sign on front windscreen
+        ctx.fillStyle = '#F59E0B';
+        ctx.fillRect(carLength / 2 - 4.5, -3.2, 1.2, 6.4);
+
+        // 5. Rear window & dual red brake lights
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.70)';
+        ctx.fillRect(-carLength / 2 + 1.0, -carWidth / 2 + 2.2, 1.8, carWidth - 4.4);
+        ctx.fillStyle = '#EF4444';
+        ctx.fillRect(-carLength / 2 + 0.3, -carWidth / 2 + 1.8, 1.2, 2.2);
+        ctx.fillRect(-carLength / 2 + 0.3, carWidth / 2 - 4.0, 1.2, 2.2);
+
+        // 6. Roof air-conditioner pod
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.beginPath();
+        ctx.roundRect(-4.5, -3.0, 9.0, 6.0, 1.5);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.lineWidth = 0.7;
+        ctx.stroke();
+
+        // 7. Dual corner yellow fog/headlamps on lead bus
+        if (c === 0) {
+          ctx.fillStyle = '#FEF08A';
+          ctx.beginPath();
+          ctx.arc(carLength / 2 - 1.5, -carWidth / 2 + 2.8, 1.5, 0, Math.PI * 2);
+          ctx.arc(carLength / 2 - 1.5, carWidth / 2 - 2.8, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (isDouble) {
+        // --- 🏢 DOUBLE-DECKER TRAIN DEDICATED DESIGN ---
+        // 1. High-capacity aerodynamic dual-tier railcar body
+        ctx.fillStyle = line.color;
+        ctx.beginPath();
+        if (c === 0) {
+          // Streamlined bullet nose on lead locomotive
+          ctx.roundRect(-carLength / 2, -carWidth / 2, carLength, carWidth, [3.0, 7.5, 7.5, 3.0]);
+        } else {
+          ctx.roundRect(-carLength / 2, -carWidth / 2, carLength, carWidth, 3.2);
+        }
+        ctx.fill();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2.0;
+        ctx.stroke();
+
+        // 2. Upper and lower tinted panoramic observation window bands
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.55)';
+        ctx.fillRect(-carLength / 2 + 3.0, -carWidth / 2 + 1.2, carLength - 7.5, 1.8);
+        ctx.fillRect(-carLength / 2 + 3.0, carWidth / 2 - 3.0, carLength - 7.5, 1.8);
+
+        // 3. Dual-deck dividing stripe along center
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.moveTo(-carLength / 2 + 2.0, 0);
+        ctx.lineTo(carLength / 2 - 3.5, 0);
+        ctx.stroke();
+
+        // 4. White aerodynamic roof rib
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(-carLength / 2 + 4.0, -0.6);
+        ctx.lineTo(carLength / 2 - 5.0, -0.6);
+        ctx.stroke();
+
+        // 5. High-speed diamond pantograph on locomotive roof
+        if (c === 0) {
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 1.0;
+          ctx.beginPath();
+          ctx.moveTo(-carLength / 2 + 5, 0);
+          ctx.lineTo(-carLength / 2 + 8, -2.5);
+          ctx.lineTo(-carLength / 2 + 11, 0);
+          ctx.lineTo(-carLength / 2 + 8, 2.5);
+          ctx.closePath();
+          ctx.stroke();
+
+          // Piercing dual projector headlights
+          ctx.fillStyle = '#FEF08A';
+          ctx.beginPath();
+          ctx.arc(carLength / 2 - 1.8, -3.2, 1.6, 0, Math.PI * 2);
+          ctx.arc(carLength / 2 - 1.8, 3.2, 1.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else {
+        // --- 🚇 STANDARD METRO TRAIN CLASSIC DESIGN ---
+        ctx.fillStyle = line.color;
+        ctx.beginPath();
         ctx.roundRect(-carLength / 2, -carWidth / 2, carLength, carWidth, 3.2);
+        ctx.fill();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        // Central headlight lamp on lead car
+        if (c === 0) {
+          const noseX = carLength / 2 - 1.5;
+          ctx.fillStyle = 'rgba(250, 204, 21, 0.88)';
+          ctx.beginPath();
+          ctx.arc(noseX, 0, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+        }
       }
-      ctx.fill();
 
-      // Solid black outline for crisp, high-contrast Mini Metro train cars
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 1.8;
-      ctx.stroke();
-
-      // Feeder Bus front windscreen divider
-      if (isBus) {
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
-        ctx.lineWidth = 1.2;
+      // Feature 2: CBTC Driverless Telemetry Signal Beacon on locomotive
+      if ((train.isCBTC || line.hasCBTC) && c === 0) {
+        const cbtcPulse = (Math.sin(performance.now() / 200) + 1) * 0.5;
+        ctx.fillStyle = `rgba(6, 182, 212, ${0.55 + 0.45 * cbtcPulse})`;
         ctx.beginPath();
-        ctx.moveTo(carLength / 2 - 3.2, -carWidth / 2 + 1);
-        ctx.lineTo(carLength / 2 - 3.2, carWidth / 2 - 1);
+        ctx.arc(-carLength / 2 + 3.0, 0, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(6, 182, 212, ${0.45 + 0.55 * cbtcPulse})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.arc(-carLength / 2 + 3.0, 0, 3.2, -Math.PI / 2, Math.PI / 2);
         ctx.stroke();
       }
 
-      // Feature 7: Double-decker dual-deck dividing stripe
-      if (isDouble) {
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.lineWidth = 0.9;
-        ctx.beginPath();
-        ctx.moveTo(-carLength / 2 + 1.5, 0);
-        ctx.lineTo(carLength / 2 - 1.5, 0);
-        ctx.stroke();
+      // Feature 19: Transit Advertising Decal Stripe along carriage flanks
+      if (options.hasTransitAdContract && c > 0) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillRect(-carLength / 2 + 3, carWidth / 2 - 2.2, carLength - 6, 1.4);
+        ctx.fillStyle = '#0284C7';
+        ctx.fillRect(-carLength / 2 + 5, carWidth / 2 - 1.8, carLength - 10, 0.6);
       }
 
       // Feature 10: Night Maintenance Train beacon
@@ -1217,23 +1367,26 @@ export function renderScene(
         ctx.stroke();
       }
 
-      // Headlight lamp on the front nose of the lead locomotive car
-      if (c === 0) {
-        const noseX = carLength / 2 - 1.5;
-        ctx.fillStyle = isBus ? 'rgba(251, 191, 36, 0.95)' : 'rgba(250, 204, 21, 0.88)'; // Warm yellow lamp lens
-        ctx.beginPath();
-        ctx.arc(noseX, 0, isBus ? 1.9 : 2.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
-        ctx.lineWidth = 0.8;
-        ctx.stroke();
+      // Passengers inside vehicle:
+      // Lead cars & BRT buses carry 6 passengers; double-deckers carry 12 (8 in carriages); trailing cars carry 4.
+      let carCapacity = 4;
+      if (isDouble) {
+        carCapacity = c === 0 ? 12 : 8;
+      } else if (isBus) {
+        carCapacity = 6;
+      } else {
+        carCapacity = c === 0 ? 6 : 4;
       }
 
-      // Passengers inside the train: clean geometric shapes (white with crisp dark outline)
-      const passengersPerCar = isDouble ? 8 : 4;
-      const startPassengerIdx = c * passengersPerCar;
-      const endPassengerIdx = Math.min(train.passengers.length, startPassengerIdx + passengersPerCar);
-      const carPassengerCount = endPassengerIdx - startPassengerIdx;
+      let startPassengerIdx = 0;
+      for (let prev = 0; prev < c; prev++) {
+        if (isDouble) startPassengerIdx += (prev === 0 ? 12 : 8);
+        else if (isBus) startPassengerIdx += 6;
+        else startPassengerIdx += (prev === 0 ? 6 : 4);
+      }
+
+      const endPassengerIdx = Math.min(train.passengers.length, startPassengerIdx + carCapacity);
+      const carPassengerCount = Math.max(0, endPassengerIdx - startPassengerIdx);
 
       for (let pIdx = startPassengerIdx; pIdx < endPassengerIdx; pIdx++) {
         const passenger = train.passengers[pIdx];
@@ -1249,19 +1402,49 @@ export function renderScene(
           const tierTotal = Math.ceil(carPassengerCount / 2);
           const spacing = carLength / (Math.max(1, tierTotal) + 1);
           px = -carLength / 2 + spacing * (tierIdx + 1);
-          py = isUpper ? -2.2 : 2.2;
+          py = isUpper ? -3.0 : 3.0;
+        } else if (isBus) {
+          // 🚌 BRT Bus: 1 BRT carries 6 passengers (2 rows of 3 seats along window sides)
+          const isTopRow = localPIdx % 2 === 0;
+          const colIdx = Math.floor(localPIdx / 2); // 0, 1, 2
+          const colTotal = Math.ceil(carPassengerCount / 2);
+          const spacing = (carLength - 10) / (Math.max(1, colTotal) + 1);
+          px = -carLength / 2 + 3.2 + spacing * (colIdx + 1);
+          py = isTopRow ? -2.7 : 2.7;
         } else {
-          const spacing = carLength / (carPassengerCount + 1);
-          px = -carLength / 2 + spacing * (localPIdx + 1);
-          py = 0;
+          // Standard metro train car
+          if (carCapacity > 4 && carPassengerCount > 4) {
+            // Staggered layout for 5-6 passengers
+            const isTopRow = localPIdx % 2 === 0;
+            const colIdx = Math.floor(localPIdx / 2);
+            const colTotal = Math.ceil(carPassengerCount / 2);
+            const spacing = (carLength - 8) / (Math.max(1, colTotal) + 1);
+            px = -carLength / 2 + 3.0 + spacing * (colIdx + 1);
+            py = isTopRow ? -2.2 : 2.2;
+          } else {
+            const spacing = carLength / (carPassengerCount + 1);
+            px = -carLength / 2 + spacing * (localPIdx + 1);
+            py = 0;
+          }
         }
 
-        drawShape(ctx, passenger.targetShape, px, py, isDouble ? 2.2 : 2.7, '#FFFFFF', '#0F172A', 0.9);
+        const shapeRadius = isDouble ? 2.2 : isBus ? 2.05 : 2.6;
+        drawShape(ctx, passenger.targetShape, px, py, shapeRadius, '#FFFFFF', '#0F172A', 0.9);
 
-        // Feature 19: Minimalist suitcase icon next to luggage passenger
+        // Feature 19 (cũ): Minimalist suitcase icon next to luggage passenger
         if (passenger.hasLuggage) {
           ctx.fillStyle = '#F59E0B';
-          ctx.fillRect(px + (isDouble ? 2.0 : 2.4), py - 1.0, 1.8, 2.0);
+          ctx.fillRect(px + (isDouble || isBus ? 1.6 : 2.4), py - 1.0, 1.5, 1.6);
+        } else if (passenger.isStudent) {
+          // Feature 13: Student amber backpack
+          ctx.fillStyle = '#EAB308';
+          ctx.beginPath();
+          ctx.arc(px + (isDouble || isBus ? 1.5 : 2.2), py - 1.1, 0.95, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (passenger.isTourist) {
+          // Feature 14: Tourist camera / cyan lanyard
+          ctx.fillStyle = '#06B6D4';
+          ctx.fillRect(px + (isDouble || isBus ? 1.5 : 2.2), py - 0.9, 1.3, 1.3);
         }
       }
 
@@ -1653,7 +1836,67 @@ export function renderScene(
       ctx.fillStyle = hubColor;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(hubLabel, station.x, badgeY);
+      ctx.restore();
+    }
+
+    // Feature 24: Smart IC Card contactless ticket gate badge
+    if (station.hasSmartIC) {
+      ctx.save();
+      const icLabel = '💳 IC CARD';
+      const badgeY = station.y - baseRadius - (station.isFlooded ? 44 : 18);
+      ctx.font = 'bold 7.5px sans-serif';
+      const textW = ctx.measureText(icLabel).width;
+      const totalW = textW + 8;
+
+      ctx.beginPath();
+      ctx.roundRect(station.x - totalW / 2, badgeY - 5.5, totalW, 11, 3);
+      ctx.fillStyle = isDark ? 'rgba(6, 78, 59, 0.94)' : 'rgba(209, 250, 229, 0.96)';
+      ctx.fill();
+      ctx.strokeStyle = '#10B981';
+      ctx.lineWidth = 1.0;
+      ctx.stroke();
+
+      ctx.fillStyle = isDark ? '#A7F3D0' : '#065F46';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(icLabel, station.x, badgeY);
+      ctx.restore();
+    }
+
+    // Feature 28: Expo Centre Radiant Aura & Golden Badge
+    if (station.isExpoCentre) {
+      ctx.save();
+      const pulse = 1 + Math.sin(performance.now() / 250) * 0.08;
+      const expoRadius = (baseRadius + 16) * pulse;
+
+      // Radiant rotating golden dashed halo
+      ctx.beginPath();
+      ctx.arc(station.x, station.y, expoRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.85)';
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([7, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const daysLeft = station.expoRemainingDays ?? 7;
+      const expoLabel = `🌟 EXPO (${daysLeft}d - $15K)`;
+      const badgeY = station.y + baseRadius + (station.specialHubType ? 36 : options.showStationNames ? 24 : 12);
+      ctx.font = 'bold 8.5px sans-serif';
+      const textW = ctx.measureText(expoLabel).width;
+      const totalW = textW + 12;
+
+      ctx.beginPath();
+      ctx.roundRect(station.x - totalW / 2, badgeY - 7, totalW, 15, 4);
+      ctx.fillStyle = '#D97706';
+      ctx.fill();
+      ctx.strokeStyle = '#FEF3C7';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(expoLabel, station.x, badgeY);
       ctx.restore();
     }
 
