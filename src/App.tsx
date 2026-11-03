@@ -2154,6 +2154,7 @@ export default function App() {
           onBuyDoubleDecker={() => { engine?.buyDoubleDeckerTrain(); syncSnapshot(); }}
           onBuyFeederBus={() => { engine?.buyFeederBus(); syncSnapshot(); }}
           hasTransitAdContract={state.stats?.hasTransitAdContract}
+          transitAdDaysRemaining={state.stats?.transitAdDaysRemaining}
           onBuyTransitAdContract={handleBuyTransitAdContract}
         />
       )}

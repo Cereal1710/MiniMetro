@@ -187,6 +187,7 @@ export class MetroEngine {
         luggageFareRevenueTotal: 0,
         nightMaintenanceCount: 0,
         hasTransitAdContract: false,
+        transitAdDaysRemaining: 0,
         totalAdRevenue: 0,
         totalTouristTips: 0,
         expoEventsCompleted: 0
@@ -438,13 +439,24 @@ export class MetroEngine {
       const dailyCost = this.state.trains.length * 20 + this.state.lines.length * 10;
       this.state.money = Math.max(0, this.state.money - dailyCost);
 
-      // Feature 19: Doanh thu quảng cáo thân tàu ($200/ngày cho mỗi toa tàu đang vận hành)
-      if (this.state.stats.hasTransitAdContract) {
+      // Feature 19: Doanh thu quảng cáo thân tàu ($200/ngày cho mỗi toa tàu đang vận hành, mua theo tuần)
+      if (this.state.stats.hasTransitAdContract && (this.state.stats.transitAdDaysRemaining || 0) > 0) {
         const totalCars = this.state.trains.reduce((sum, t) => sum + 1 + (t.carriagesCount || 0), 0);
         const adPayout = totalCars * 200;
         this.state.money += adPayout;
         this.state.stats.totalAdRevenue = (this.state.stats.totalAdRevenue || 0) + adPayout;
-        this.addFloatingText(740, 480, `📰 +$${adPayout.toLocaleString()} Doanh thu Quảng cáo Thân tàu (${totalCars} toa)`, '#3B82F6');
+        this.state.stats.transitAdDaysRemaining = Math.max(0, (this.state.stats.transitAdDaysRemaining || 0) - 1);
+
+        if (this.state.stats.transitAdDaysRemaining === 0) {
+          this.state.stats.hasTransitAdContract = false;
+          this.addFloatingText(740, 480, `📰 +$${adPayout.toLocaleString()} QC Thân tàu • Hợp đồng tuần ĐÃ HẾT HẠN!`, '#F59E0B');
+          soundEngine.playDisconnect();
+        } else {
+          this.addFloatingText(740, 480, `📰 +$${adPayout.toLocaleString()} QC Thân tàu (${totalCars} toa • Còn ${this.state.stats.transitAdDaysRemaining} ngày)`, '#0EA5E9');
+        }
+      } else {
+        this.state.stats.hasTransitAdContract = false;
+        this.state.stats.transitAdDaysRemaining = 0;
       }
 
       // Feature 28: Đếm ngược tuần lễ Expo & Thưởng hoàn thành
@@ -728,9 +740,6 @@ export class MetroEngine {
             dwellingTime: 0,
             isDockedAtDepot: false
           });
-        } else if (!line.isDepotRecalled && trainsOnLine.every(t => t.isDockedAtDepot)) {
-          trainsOnLine[0].isDockedAtDepot = false;
-          trainsOnLine[0].dwellingTime = 0;
         }
       }
     }
@@ -2353,27 +2362,30 @@ export class MetroEngine {
     return true;
   }
 
-  public toggleTransitAdContract(): boolean {
-    const turningOn = !this.state.stats.hasTransitAdContract;
-    const fee = 5000;
-
-    if (turningOn && !this.isUnlimitedMode) {
-      if (this.state.money < fee) {
+  public buyTransitAdContract(cost = 2000): boolean {
+    if (!this.isUnlimitedMode) {
+      if (this.state.money < cost) {
         soundEngine.playDisconnect();
-        this.addFloatingText(740, 500, `❌ Cần $${fee.toLocaleString()} để ký Hợp đồng Quảng cáo Đô thị!`, '#EF4444');
+        this.addFloatingText(740, 500, `❌ Cần $${cost.toLocaleString()} để ký/gia hạn Hợp đồng Quảng cáo 1 Tuần!`, '#EF4444');
         return false;
       }
-      this.state.money -= fee;
+      this.state.money -= cost;
     }
 
-    this.state.stats.hasTransitAdContract = turningOn;
-    soundEngine.playConnect();
-    if (turningOn) {
-      this.addFloatingText(740, 500, `📰 Đã ký Hợp đồng Quảng cáo Thân tàu (-$${fee.toLocaleString()}): +$200/ngày/toa!`, '#3B82F6');
-    } else {
-      this.addFloatingText(740, 500, `📰 Đã chấm dứt Hợp đồng Quảng cáo Thân tàu`, '#94A3B8');
-    }
+    this.state.stats.transitAdDaysRemaining = (this.state.stats.transitAdDaysRemaining || 0) + 7;
+    this.state.stats.hasTransitAdContract = true;
+    soundEngine.playFanfare();
+    this.addFloatingText(
+      740,
+      500,
+      `📰 Ký Hợp đồng Quảng cáo 1 Tuần (-$${cost.toLocaleString()}): Còn ${this.state.stats.transitAdDaysRemaining} ngày (+$200/ngày/toa)!`,
+      '#0EA5E9'
+    );
     return true;
+  }
+
+  public toggleTransitAdContract(): boolean {
+    return this.buyTransitAdContract();
   }
 
   public triggerExpoWeek(forceStationId?: string): boolean {

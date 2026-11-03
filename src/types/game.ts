@@ -353,6 +353,7 @@ export interface GameStats {
   luggageFareRevenueTotal?: number; // Tổng tiền vé hành khách mang vali (x3)
   nightMaintenanceCount?: number; // Số lần bảo trì đêm hoàn tất
   hasTransitAdContract?: boolean; // Feature 19: Hợp đồng quảng cáo ($200/ngày/toa)
+  transitAdDaysRemaining?: number; // Feature 19: Số ngày còn lại của hợp đồng quảng cáo (mua theo tuần)
   totalAdRevenue?: number; // Tổng doanh thu từ quảng cáo thân tàu
   totalTouristTips?: number; // Feature 14: Tổng tiền tip từ du khách ($10/lượt)
   expoEventsCompleted?: number; // Feature 28: Số tuần lễ Expo hoàn thành xuất sắc

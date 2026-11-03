@@ -18,6 +18,7 @@ import {
   Check
 } from 'lucide-react';
 import { MetroLine, GameInventory, Train, Station, MetroLineType, StationShape } from '../types/game';
+import { calculateLineLengthKm } from '../utils/geometry';
 
 interface MiniMetroDockProps {
   lines: MetroLine[];
@@ -101,6 +102,7 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
   const carriagesOnSelected = trainsOnSelected.reduce((sum, t) => sum + t.carriagesCount, 0);
 
   const stationMap = new Map<string, Station>(stations.map(s => [s.id, s]));
+  const lineLengthKm = selectedLine ? calculateLineLengthKm(selectedLine.stationIds, selectedLine.isLoop, stationMap) : 0;
 
   return (
     <div className="fixed bottom-5 left-5 z-40 pointer-events-auto flex flex-col items-start select-none max-w-[94vw]">
@@ -193,7 +195,7 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
                 </div>
               )}
               <span className={`text-[10px] font-mono whitespace-nowrap shrink-0 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                ({selectedLine.stationIds.length} {lang === 'vi' ? 'ga' : 'stations'})
+                ({selectedLine.stationIds.length} {lang === 'vi' ? 'ga' : 'stations'} • {lineLengthKm} km)
               </span>
             </div>
 

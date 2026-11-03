@@ -17,6 +17,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { MetroLine, Station, Train } from '../types/game';
+import { calculateLineLengthKm } from '../utils/geometry';
 
 interface LineSettingsModalProps {
   line: MetroLine;
@@ -222,7 +223,7 @@ export const LineSettingsModal: React.FC<LineSettingsModalProps> = ({
                   style={{ backgroundColor: `${line.color}25`, color: line.color }}
                   className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold"
                 >
-                  {line.stationIds.length} {lang === 'vi' ? 'ga' : 'stations'}
+                  {line.stationIds.length} {lang === 'vi' ? 'ga' : 'stations'} • {calculateLineLengthKm(line.stationIds, line.isLoop, stations)} km
                 </span>
                 {line.isLoop && (
                   <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-mono">

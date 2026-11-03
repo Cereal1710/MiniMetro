@@ -1347,12 +1347,24 @@ export function renderScene(
         ctx.stroke();
       }
 
-      // Feature 19: Transit Advertising Decal Stripe along carriage flanks
-      if (options.hasTransitAdContract && c > 0) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.fillRect(-carLength / 2 + 3, carWidth / 2 - 2.2, carLength - 6, 1.4);
-        ctx.fillStyle = '#0284C7';
-        ctx.fillRect(-carLength / 2 + 5, carWidth / 2 - 1.8, carLength - 10, 0.6);
+      // Feature 19: Transit Advertising Livery on BOTH sides of the train body (Sky Blue - màu xanh da trời)
+      if (options.hasTransitAdContract) {
+        const adSkyBlue = '#0EA5E9'; // Sky Blue (xanh da trời)
+        const adWhite = 'rgba(255, 255, 255, 0.95)';
+        const decalWidth = carLength - (isBus ? 8 : 6);
+        const decalStartX = -carLength / 2 + (isBus ? 4 : 3);
+
+        // Side 1: Top flank (-carWidth / 2)
+        ctx.fillStyle = adWhite;
+        ctx.fillRect(decalStartX, -carWidth / 2 + 0.6, decalWidth, 1.8);
+        ctx.fillStyle = adSkyBlue;
+        ctx.fillRect(decalStartX + 1, -carWidth / 2 + 1.0, decalWidth - 2, 1.0);
+
+        // Side 2: Bottom flank (+carWidth / 2)
+        ctx.fillStyle = adWhite;
+        ctx.fillRect(decalStartX, carWidth / 2 - 2.4, decalWidth, 1.8);
+        ctx.fillStyle = adSkyBlue;
+        ctx.fillRect(decalStartX + 1, carWidth / 2 - 2.0, decalWidth - 2, 1.0);
       }
 
       // Feature 10: Night Maintenance Train beacon

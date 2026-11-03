@@ -19,6 +19,7 @@ interface ShopModalProps {
   onBuyDoubleDecker?: () => void;
   onBuyFeederBus?: () => void;
   hasTransitAdContract?: boolean;
+  transitAdDaysRemaining?: number;
   onBuyTransitAdContract?: () => void;
 }
 
@@ -38,6 +39,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   onBuyDoubleDecker,
   onBuyFeederBus,
   hasTransitAdContract,
+  transitAdDaysRemaining,
   onBuyTransitAdContract
 }) => {
   const isDark = theme === 'dark';
@@ -145,17 +147,19 @@ export const ShopModal: React.FC<ShopModalProps> = ({
       countLabelEn: 'Active'
     },
     {
-      titleVi: 'Hợp Đồng Quảng Cáo Thân Tàu',
-      titleEn: 'Transit Advertising Deal',
-      descVi: 'Hợp đồng quảng cáo độc quyền, mang lại nguồn thu thụ động $200/ngày cho mỗi toa tàu đang vận hành.',
-      descEn: 'Exclusive transit advertising deal bringing $200/day passive revenue for every active train car.',
-      cost: 5000,
+      titleVi: 'Hợp Đồng Quảng Cáo Thân Tàu (1 Tuần)',
+      titleEn: 'Transit Advertising Contract (1 Week)',
+      descVi: 'Hợp đồng 7 ngày (1 tuần). Thu nhập thụ động $200/ngày cho mỗi toa tàu (hiển thị dải sơn xanh da trời ở 2 bên thân tàu).',
+      descEn: '7-day deal earning $200/day passive revenue for every active train car (features sky blue livery on both flanks).',
+      cost: 2000,
       icon: <span className="text-base leading-none">📰</span>,
-      canBuy: money >= 5000 && !hasTransitAdContract && !!onBuyTransitAdContract,
+      canBuy: money >= 2000 && !!onBuyTransitAdContract,
       action: onBuyTransitAdContract || (() => {}),
-      currentCount: hasTransitAdContract ? (lang === 'vi' ? 'Đã ký ✓' : 'Active ✓') : (lang === 'vi' ? 'Chưa ký' : 'Inactive'),
-      countLabelVi: 'Hợp đồng',
-      countLabelEn: 'Contract'
+      currentCount: hasTransitAdContract
+        ? (lang === 'vi' ? `Còn ${transitAdDaysRemaining || 7} ngày` : `${transitAdDaysRemaining || 7} days left`)
+        : (lang === 'vi' ? 'Chưa kích hoạt' : 'Inactive'),
+      countLabelVi: hasTransitAdContract ? 'Thời hạn' : 'Trạng thái',
+      countLabelEn: hasTransitAdContract ? 'Duration' : 'Status'
     }
   ];
 

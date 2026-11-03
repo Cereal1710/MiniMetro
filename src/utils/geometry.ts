@@ -1,4 +1,4 @@
-import { RiverPolygon } from '../types/game';
+import { RiverPolygon, Station } from '../types/game';
 
 export interface Point {
   x: number;
@@ -339,4 +339,33 @@ export function computeLineColors(hex: string): { color: string; darkColor: stri
   const textColor = lum > 0.65 ? '#0F172A' : '#FFFFFF';
 
   return { color: clean, darkColor, textColor };
+}
+
+/**
+ * Calculate total length of a metro line in kilometers based on station coordinates
+ * Scale: 100 pixels ≈ 1.0 km (1 px = 10 meters)
+ */
+export function calculateLineLengthKm(
+  stationIds: string[],
+  isLoop: boolean,
+  stationMap: Map<string, Station> | Station[]
+): number {
+  if (!stationIds || stationIds.length < 2) return 0;
+  const map = Array.isArray(stationMap) ? new Map(stationMap.map(s => [s.id, s])) : stationMap;
+  let totalPixels = 0;
+  for (let i = 0; i < stationIds.length - 1; i++) {
+    const s1 = map.get(stationIds[i]);
+    const s2 = map.get(stationIds[i + 1]);
+    if (s1 && s2) {
+      totalPixels += distance(s1, s2);
+    }
+  }
+  if (isLoop && stationIds.length >= 3) {
+    const sLast = map.get(stationIds[stationIds.length - 1]);
+    const sFirst = map.get(stationIds[0]);
+    if (sLast && sFirst) {
+      totalPixels += distance(sLast, sFirst);
+    }
+  }
+  return Number((totalPixels * 0.01).toFixed(1));
 }

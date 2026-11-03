@@ -24,6 +24,7 @@ import {
   Check
 } from 'lucide-react';
 import { MetroLine, GameInventory, Train, Station, StationShape, GameStats, MetroLineType } from '../types/game';
+import { calculateLineLengthKm } from '../utils/geometry';
 
 interface RouteManagerSidebarProps {
   lines: MetroLine[];
@@ -523,7 +524,7 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                 {/* Station Sequence Preview */}
                 <div className="mb-2.5">
                   <div className="flex items-center justify-between text-[10px] opacity-70 mb-1">
-                    <span>{line.stationIds.length} {lang === 'vi' ? 'nhà ga' : 'stations'}</span>
+                    <span>{line.stationIds.length} {lang === 'vi' ? 'nhà ga' : 'stations'} • {calculateLineLengthKm(line.stationIds, line.isLoop, stationMap)} km</span>
                     <span className="text-[10px] text-emerald-400 font-semibold">
                       {isSelected ? (lang === 'vi' ? '● Đang chọn vẽ' : '● Selected') : ''}
                     </span>
