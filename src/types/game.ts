@@ -3,6 +3,8 @@ export type StationShape = 'circle' | 'triangle' | 'square' | 'star' | 'diamond'
 export interface Passenger {
   id: string;
   targetShape: StationShape;
+  targetStationId?: string;
+  targetStationName?: string;
   spawnTime: number;
   stationId: string;
   isVip?: boolean;
@@ -131,6 +133,7 @@ export interface MetroLine {
 export interface Train {
   id: string;
   lineId: string;
+  vehicleType?: 'train' | 'bus';
   carriagesCount: number; // 0, 1, 2
   capacity: number; // base 6 + 4 per carriage (or 12 + 8 for double decker)
   speed: number; // base speed
@@ -310,6 +313,7 @@ export type TerrainToolMode = 'none' | 'add_station' | 'draw_river' | 'erase_wat
 export interface GameInventory {
   availableLines: number;
   unassignedTrains: number;
+  unassignedBuses?: number; // Xe buýt BRT dự phòng
   carriages: number;
   interchangeTokens: number;
   tunnelTokens: number;

@@ -86,6 +86,7 @@ interface HeaderProps {
   citizenSatisfaction?: number;
   activeSurgeEvent?: UrbanSurgeEvent | null;
   onOpenBank?: () => void;
+  onOpenInspector?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -135,7 +136,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenStartMenu,
   onOpenAuth,
   onDismissIncident,
-  onOpenCityManager
+  onOpenCityManager,
+  onOpenInspector
 }) => {
   const isDark = theme === 'dark';
   const dayName = lang === 'vi' ? DAY_NAMES_VI[currentDayIndex] : DAY_NAMES_EN[currentDayIndex];
@@ -257,18 +259,6 @@ export const Header: React.FC<HeaderProps> = ({
                 <X className="w-2.5 h-2.5" />
               </button>
             )}
-          </div>
-        )}
-
-        {/* Active Urban Surge Event Alert */}
-        {activeSurgeEvent && (
-          <div
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 animate-pulse"
-            title={`${activeSurgeEvent.descriptionVi} (${Math.ceil(activeSurgeEvent.durationRemaining)}s)`}
-          >
-            <span className="text-xs">{activeSurgeEvent.icon}</span>
-            <span className="hidden md:inline font-bold">{activeSurgeEvent.titleVi}</span>
-            <span className="bg-amber-400 text-slate-950 px-1 rounded text-[9px] font-black">3x VÉ</span>
           </div>
         )}
       </div>
@@ -476,6 +466,27 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     +{cityMaps.filter(c => c.isCustom).length || 0}
+                  </span>
+                </button>
+              )}
+
+              {/* Metro Line Inspector Trigger */}
+              {onOpenInspector && (
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onOpenInspector();
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    isDark ? 'hover:bg-slate-800 text-amber-300' : 'hover:bg-amber-50 text-amber-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base leading-none">👮</span>
+                    <span>{lang === 'vi' ? 'Thanh tra Tuyến (Thưởng $300/ga)' : 'Line Inspector ($300/st)'}</span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    +$1,500+
                   </span>
                 </button>
               )}

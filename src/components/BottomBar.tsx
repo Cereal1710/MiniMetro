@@ -134,28 +134,38 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                 {/* Train count display */}
                 <div
                   className="flex items-center gap-1 font-mono font-bold text-xs px-1 min-w-[28px] justify-center"
-                  title={lang === 'vi' ? `${trainsOnThisLine.length} đoàn tàu đang chạy trên tuyến` : `${trainsOnThisLine.length} trains running on line`}
+                  title={line.type === 'feeder_bus'
+                    ? (lang === 'vi' ? `${trainsOnThisLine.length} xe buýt BRT đang chạy trên tuyến` : `${trainsOnThisLine.length} BRT buses running on line`)
+                    : (lang === 'vi' ? `${trainsOnThisLine.length} đoàn tàu đang chạy trên tuyến` : `${trainsOnThisLine.length} trains running on line`)}
                 >
-                  <TrainIcon className="w-3.5 h-3.5 text-blue-400" />
+                  {line.type === 'feeder_bus' ? (
+                    <span className="text-xs">🚌</span>
+                  ) : (
+                    <TrainIcon className="w-3.5 h-3.5 text-blue-400" />
+                  )}
                   <span>{trainsOnThisLine.length}</span>
                 </div>
 
-                {/* Thêm tàu button */}
+                {/* Thêm tàu / buýt button */}
                 <button
-                  disabled={!isUnlimitedMode && inventory.unassignedTrains <= 0}
+                  disabled={!isUnlimitedMode && (line.type === 'feeder_bus' ? (inventory.unassignedBuses ?? 0) <= 0 : inventory.unassignedTrains <= 0)}
                   onClick={(e) => {
                     e.stopPropagation();
                     onDeployTrain(line.id);
                   }}
                   title={
                     isUnlimitedMode
-                      ? (lang === 'vi' ? 'Thêm 1 đoàn tàu vào tuyến (Vô hạn tàu khả dụng)' : 'Deploy 1 train (Unlimited fleet enabled)')
+                      ? (line.type === 'feeder_bus' ? (lang === 'vi' ? 'Thêm 1 xe buýt BRT (Vô hạn)' : 'Deploy 1 BRT bus') : (lang === 'vi' ? 'Thêm 1 đoàn tàu vào tuyến (Vô hạn)' : 'Deploy 1 train'))
+                      : line.type === 'feeder_bus'
+                      ? (inventory.unassignedBuses ?? 0) > 0
+                        ? (lang === 'vi' ? `Thêm 1 xe buýt BRT (Kho còn ${inventory.unassignedBuses ?? 0} xe)` : `Deploy 1 BRT bus (${inventory.unassignedBuses ?? 0} ready in depot)`)
+                        : (lang === 'vi' ? 'Kho hết xe buýt! Mua thêm trong Shop' : 'Bus depot empty! Buy in Shop')
                       : inventory.unassignedTrains > 0
                       ? (lang === 'vi' ? `Thêm 1 đoàn tàu vào tuyến (Kho còn ${inventory.unassignedTrains} tàu)` : `Deploy 1 train to line (${inventory.unassignedTrains} ready in depot)`)
-                      : (lang === 'vi' ? 'Kho hết tàu dự phòng! Bấm giảm (-) ở tuyến khác để chuyển sang đây, hoặc mua thêm ở Shop' : 'Depot empty! Recall from other lines or buy in Shop')
+                      : (lang === 'vi' ? 'Kho hết tàu dự phòng! Mua thêm ở Shop' : 'Depot empty! Buy in Shop')
                   }
                   className={`w-6 h-6 flex items-center justify-center rounded transition font-bold ${
-                    isUnlimitedMode || inventory.unassignedTrains > 0
+                    isUnlimitedMode || (line.type === 'feeder_bus' ? (inventory.unassignedBuses ?? 0) > 0 : inventory.unassignedTrains > 0)
                       ? 'bg-emerald-500/25 text-emerald-400 hover:bg-emerald-500 hover:text-white cursor-pointer active:scale-95 shadow-xs'
                       : 'opacity-25 cursor-not-allowed text-neutral-500'
                   }`}
@@ -327,6 +337,19 @@ export const BottomBar: React.FC<BottomBarProps> = ({
           <TrainIcon className="w-4 h-4 text-purple-400" />
           <span className="text-xs font-mono font-bold">{inventory.unassignedTrains}</span>
           <span className="text-[10px] opacity-60 uppercase">{lang === 'vi' ? 'Tàu chờ' : 'Trains'}</span>
+        </div>
+
+        {/* Unassigned BRT Buses */}
+        <div
+          onClick={onOpenShop}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer transition ${
+            isDark ? 'bg-neutral-800/50 border-neutral-700 hover:border-neutral-500' : 'bg-neutral-100 border-neutral-200 hover:border-neutral-400'
+          }`}
+          title={lang === 'vi' ? 'Xe buýt BRT dự phòng sẵn sàng bố trí' : 'Spare BRT buses ready to deploy'}
+        >
+          <span className="text-sm">🚌</span>
+          <span className="text-xs font-mono font-bold text-amber-400">{inventory.unassignedBuses ?? 0}</span>
+          <span className="text-[10px] opacity-60 uppercase">{lang === 'vi' ? 'Kho buýt' : 'Buses'}</span>
         </div>
 
         {/* Carriages */}

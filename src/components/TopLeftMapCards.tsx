@@ -28,6 +28,7 @@ interface TopLeftMapCardsProps {
   currentDayIndex?: number;
   weather?: WeatherState;
   activeIncident?: UrbanIncident | null;
+  activeSurgeEvent?: UrbanSurgeEvent | null;
   isRushHour?: boolean;
   money?: number;
   theme: 'dark' | 'light';
@@ -45,6 +46,7 @@ export const TopLeftMapCards: React.FC<TopLeftMapCardsProps> = ({
   currentDayIndex = 0,
   weather,
   activeIncident,
+  activeSurgeEvent,
   isRushHour = false,
   money = 0,
   theme,
@@ -174,6 +176,93 @@ export const TopLeftMapCards: React.FC<TopLeftMapCardsProps> = ({
           </>
         )}
       </div>
+
+      {/* Active Urban Surge Event Alert (Image 1 placed below Image 2) */}
+      {isHudVisible && activeSurgeEvent && (
+        <div
+          className={`pointer-events-auto p-2.5 rounded-2xl border backdrop-blur-xl flex items-center justify-between gap-2.5 shadow-lg transition-all animate-pulse ${
+            isDark
+              ? 'bg-amber-950/50 border-amber-500/60 text-amber-200 shadow-amber-950/40'
+              : 'bg-amber-50/95 border-amber-400 text-amber-900 shadow-amber-200'
+          }`}
+          title={`${activeSurgeEvent.descriptionVi} (${Math.ceil(activeSurgeEvent.durationRemaining)}s)`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base shrink-0">{activeSurgeEvent.icon}</span>
+            <div className="min-w-0">
+              <div className="font-bold text-xs truncate flex items-center gap-1.5">
+                <span>{lang === 'vi' ? activeSurgeEvent.titleVi : activeSurgeEvent.titleEn}</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-amber-500/25 text-amber-300 font-mono font-bold">
+                  {Math.ceil(activeSurgeEvent.durationRemaining)}s
+                </span>
+              </div>
+              <div className="text-[10px] opacity-80 truncate">
+                {lang === 'vi' ? activeSurgeEvent.descriptionVi : activeSurgeEvent.descriptionEn}
+              </div>
+            </div>
+          </div>
+          <span className="font-mono text-[10px] font-black text-slate-950 bg-amber-400 px-2 py-0.5 rounded-md shrink-0 shadow-xs">
+            {activeSurgeEvent.fareMultiplier || 3}x VÉ
+          </span>
+        </div>
+      )}
+
+      {/* Active Incident Quick Alert Banner */}
+      {isHudVisible && activeIncident && (
+        <div className={`pointer-events-auto p-2.5 rounded-2xl border backdrop-blur-xl flex items-center justify-between gap-2 shadow-lg transition-all ${
+          isDark
+            ? 'bg-rose-950/50 border-rose-500/50 text-rose-200 shadow-rose-950/40'
+            : 'bg-rose-50/95 border-rose-300 text-rose-900 shadow-rose-100'
+        }`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
+            <div className="min-w-0">
+              <div className="font-bold text-xs truncate flex items-center gap-1.5">
+                <span>{lang === 'vi' ? activeIncident.titleVi : activeIncident.titleEn}</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-rose-500/25 text-rose-300 font-mono font-bold">
+                  {Math.ceil(activeIncident.remainingSeconds)}s
+                </span>
+              </div>
+              <div className="text-[10px] opacity-85 truncate">
+                {lang === 'vi' ? activeIncident.descriptionVi : activeIncident.descriptionEn}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {activeIncident.affectedTrainId && onRepairTrain && (
+              <button
+                type="button"
+                onClick={() => onRepairTrain(activeIncident.affectedTrainId!)}
+                disabled={(money || 0) < 400}
+                className="px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer"
+              >
+                🛠️ {lang === 'vi' ? 'Sửa' : 'Fix'}
+              </button>
+            )}
+            {activeIncident.affectedStationIds && activeIncident.affectedStationIds.length > 0 && onDeploySecurity && (
+              <button
+                type="button"
+                onClick={() => onDeploySecurity(activeIncident.affectedStationIds![0])}
+                disabled={(money || 0) < 300}
+                className="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-600 hover:bg-blue-500 text-white transition cursor-pointer"
+              >
+                👮 {lang === 'vi' ? 'An ninh' : 'Police'}
+              </button>
+            )}
+            {onDismissIncident && (
+              <button
+                type="button"
+                onClick={onDismissIncident}
+                className="p-1 rounded-lg hover:bg-rose-500/20 text-rose-300 transition cursor-pointer"
+                title={lang === 'vi' ? 'Đóng' : 'Close'}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Expo Week Active Banner (Feature 28) */}
       {isHudVisible && expoStation && (

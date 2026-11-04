@@ -12,6 +12,7 @@ interface ShopModalProps {
   lang: 'vi' | 'en';
   onClose: () => void;
   onBuyTrain: () => void;
+  onBuyBus?: () => void;
   onBuyCarriage: () => void;
   onBuyLine: () => void;
   onBuyInterchange: () => void;
@@ -30,6 +31,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   lang,
   onClose,
   onBuyTrain,
+  onBuyBus,
   onBuyCarriage,
   onBuyLine,
   onBuyInterchange,
@@ -41,6 +43,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   const isDark = theme === 'dark';
 
   const trainCost = 400 + totalTrainsCount * 100;
+  const busCost = 300 + (inventory.unassignedBuses ?? 0) * 50;
   const carriageCost = 250;
   const lineCost = 3000;
   const interchangeCost = 350;
@@ -69,16 +72,29 @@ export const ShopModal: React.FC<ShopModalProps> = ({
       countLabelEn: 'Available'
     },
     {
-      titleVi: 'Đoàn Tàu Mới',
+      titleVi: 'Đoàn Tàu Metro Mới',
       titleEn: 'New Metro Train',
-      descVi: 'Bổ sung 1 đoàn tàu vào kho dự phòng để điều phối lên các tuyến bận rộn.',
-      descEn: 'Add 1 train to your depot to deploy onto crowded lines.',
+      descVi: 'Bổ sung 1 đoàn tàu vào kho dự phòng để điều phối lên các tuyến đường sắt.',
+      descEn: 'Add 1 train to your depot to deploy onto crowded rail lines.',
       cost: trainCost,
       icon: <Train className="w-5 h-5 text-purple-400" />,
       canBuy: money >= trainCost,
       action: onBuyTrain,
       currentCount: inventory.unassignedTrains,
       countLabelVi: 'Chưa bố trí',
+      countLabelEn: 'Depot'
+    },
+    {
+      titleVi: 'Xe Buýt Nhanh BRT Mới',
+      titleEn: 'New Feeder BRT Bus',
+      descVi: 'Bổ sung 1 xe buýt nhanh BRT (6 chỗ, qua cầu đường bộ miễn phí) vào kho buýt.',
+      descEn: 'Add 1 Feeder BRT bus (6 capacity, free road bridges) to your bus depot.',
+      cost: busCost,
+      icon: <span className="text-xl leading-none">🚌</span>,
+      canBuy: money >= busCost && !!onBuyBus,
+      action: onBuyBus || (() => {}),
+      currentCount: inventory.unassignedBuses ?? 0,
+      countLabelVi: 'Kho buýt',
       countLabelEn: 'Depot'
     },
     {

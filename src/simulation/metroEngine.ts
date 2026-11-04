@@ -125,6 +125,7 @@ export class MetroEngine {
     if (this.isUnlimitedMode) {
       this.state.inventory.availableLines = 99;
       this.state.inventory.unassignedTrains = 99;
+      this.state.inventory.unassignedBuses = 99;
       this.state.inventory.carriages = 99;
       this.state.inventory.tunnelTokens = 99;
       this.state.inventory.interchangeTokens = 99;
@@ -164,6 +165,7 @@ export class MetroEngine {
       inventory: {
         availableLines: 3,
         unassignedTrains: 2,
+        unassignedBuses: 2,
         carriages: 1,
         interchangeTokens: 1,
         tunnelTokens: 2,
@@ -661,10 +663,16 @@ export class MetroEngine {
             const isMonthlyPassHolder = isStudent ? true : Math.random() < 0.80;
 
             const finalTargetShape = isStudent ? (candidateShapes.includes('circle') ? 'circle' : targetShape) : targetShape;
+            const matchingStations = this.state.stations.filter(s => s.shape === finalTargetShape && s.id !== station.id);
+            const chosenDestStation = matchingStations.length > 0
+              ? matchingStations[Math.floor(Math.random() * matchingStations.length)]
+              : undefined;
 
             const passenger: Passenger = {
               id: `p-${this.passengerIdCounter++}`,
               targetShape: finalTargetShape,
+              targetStationId: chosenDestStation?.id,
+              targetStationName: chosenDestStation?.name,
               spawnTime: Date.now(),
               stationId: station.id,
               hasLuggage,
@@ -683,6 +691,8 @@ export class MetroEngine {
               station.passengers.push({
                 id: `p-student-buddy-${this.passengerIdCounter++}`,
                 targetShape: finalTargetShape,
+                targetStationId: chosenDestStation?.id,
+                targetStationName: chosenDestStation?.name,
                 spawnTime: Date.now(),
                 stationId: station.id,
                 hasLuggage: false,
@@ -706,9 +716,16 @@ export class MetroEngine {
       if (returnCommuter) {
         const originSt = this.state.stations.find(s => s.id === returnCommuter.originStationId);
         if (originSt && originSt.passengers.length < originSt.maxCapacity + 4) {
+          const matchingStations = this.state.stations.filter(s => s.shape === returnCommuter.targetShape && s.id !== originSt.id);
+          const destStation = matchingStations.length > 0
+            ? matchingStations[Math.floor(Math.random() * matchingStations.length)]
+            : undefined;
+
           originSt.passengers.push({
             id: `p-return-${this.passengerIdCounter++}`,
             targetShape: returnCommuter.targetShape,
+            targetStationId: destStation?.id,
+            targetStationName: destStation?.name,
             spawnTime: Date.now(),
             stationId: originSt.id,
             isReturnTrip: true,
@@ -1903,9 +1920,14 @@ export class MetroEngine {
       const shapes: StationShape[] = ['circle', 'triangle', 'square', 'star', 'diamond'];
       for (let i = 0; i < 6; i++) {
         const otherShapes = shapes.filter(s => s !== targetStation.shape);
+        const tShape = otherShapes[Math.floor(Math.random() * otherShapes.length)];
+        const matchSt = this.state.stations.filter(s => s.shape === tShape && s.id !== targetStation.id);
+        const destSt = matchSt.length > 0 ? matchSt[Math.floor(Math.random() * matchSt.length)] : undefined;
         targetStation.passengers.push({
           id: `p-concert-${Date.now()}-${i}`,
-          targetShape: otherShapes[Math.floor(Math.random() * otherShapes.length)],
+          targetShape: tShape,
+          targetStationId: destSt?.id,
+          targetStationName: destSt?.name,
           spawnTime: Date.now(),
           stationId: targetStation.id
         });
@@ -2434,7 +2456,11 @@ export class MetroEngine {
 
     // Remove trains on this line and return them to inventory
     const trainsOnLine = this.state.trains.filter(t => t.lineId === lineId);
-    this.state.inventory.unassignedTrains += trainsOnLine.length;
+    if (line.type === 'feeder_bus') {
+      this.state.inventory.unassignedBuses = (this.state.inventory.unassignedBuses ?? 0) + trainsOnLine.length;
+    } else {
+      this.state.inventory.unassignedTrains += trainsOnLine.length;
+    }
     trainsOnLine.forEach(t => {
       this.state.inventory.carriages += t.carriagesCount;
     });
@@ -2649,9 +2675,11 @@ export class MetroEngine {
     line.stationIds.push(stationId);
     soundEngine.playConnect();
 
-    // If this line just reached 2 stations and has no train yet, deploy 1 train automatically if available
+    // If this line just reached 2 stations and has no vehicle yet, deploy 1 train/bus automatically if available
     const trainsOnLine = this.state.trains.filter(t => t.lineId === lineId);
-    if (line.stationIds.length === 2 && trainsOnLine.length === 0 && this.state.inventory.unassignedTrains > 0) {
+    const isBus = line.type === 'feeder_bus';
+    const hasStock = isBus ? (this.state.inventory.unassignedBuses ?? 0) > 0 : this.state.inventory.unassignedTrains > 0;
+    if (line.stationIds.length === 2 && trainsOnLine.length === 0 && (this.isUnlimitedMode || hasStock)) {
       this.deployTrainToLine(lineId);
     }
 
@@ -2745,9 +2773,12 @@ export class MetroEngine {
     };
 
     // If target line is brand new / empty
+    const isTargetBus = targetLine.type === 'feeder_bus';
+    const hasTargetStock = isTargetBus ? (this.state.inventory.unassignedBuses ?? 0) > 0 : this.state.inventory.unassignedTrains > 0;
+
     if (sIds.length === 0) {
       sIds.push(fromId, toId);
-      if (this.state.inventory.unassignedTrains > 0) {
+      if (this.isUnlimitedMode || hasTargetStock) {
         this.deployTrainToLine(targetLine.id);
       }
       return onConnected(targetLine);
@@ -2761,7 +2792,7 @@ export class MetroEngine {
       } else {
         sIds.push(toId);
       }
-      if (this.state.inventory.unassignedTrains > 0) {
+      if (this.isUnlimitedMode || hasTargetStock) {
         this.deployTrainToLine(targetLine.id);
       }
       return onConnected(targetLine);
@@ -2950,10 +2981,17 @@ export class MetroEngine {
   }
 
   public deployTrainToLine(lineId: string): boolean {
-    if (this.state.inventory.unassignedTrains <= 0) return false;
-
     const line = this.state.lines.find(l => l.id === lineId);
     if (!line || line.stationIds.length < 2) return false;
+
+    const isBus = line.type === 'feeder_bus';
+    if (!this.isUnlimitedMode) {
+      if (isBus) {
+        if ((this.state.inventory.unassignedBuses ?? 0) <= 0) return false;
+      } else {
+        if (this.state.inventory.unassignedTrains <= 0) return false;
+      }
+    }
 
     const depotId = (line.depotStationId && line.stationIds.includes(line.depotStationId))
       ? line.depotStationId
@@ -3000,14 +3038,20 @@ export class MetroEngine {
     }
 
     const isDouble = line.type === 'double_decker';
-    const isBus = line.type === 'feeder_bus';
-    this.state.inventory.unassignedTrains--;
+    if (!this.isUnlimitedMode) {
+      if (isBus) {
+        this.state.inventory.unassignedBuses = Math.max(0, (this.state.inventory.unassignedBuses ?? 0) - 1);
+      } else {
+        this.state.inventory.unassignedTrains--;
+      }
+    }
     const train: Train = {
-      id: `train-${Date.now()}-${Math.random()}`,
+      id: `${isBus ? 'bus' : 'train'}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       lineId,
+      vehicleType: isBus ? 'bus' : 'train',
       carriagesCount: 0,
       capacity: isDouble ? 12 : 6, // 1 xe BRT chở 6 người
-      speed: 45,
+      speed: isBus ? 40 : 45,
       segmentIndex: segIdx,
       progress: 0,
       direction: dir,
@@ -3019,12 +3063,16 @@ export class MetroEngine {
     };
 
     this.state.trains.push(train);
-    soundEngine.playConnect();
+    if (isBus) {
+      soundEngine.playBusHorn();
+    } else {
+      soundEngine.playConnect();
+    }
 
     // Floating text notification
     const spawnStation = this.state.stations.find(s => s.id === spawnStationId) || this.state.stations.find(s => s.id === depotId);
     if (spawnStation) {
-      const vehicleName = isBus ? 'Xe Buýt BRT (6 chỗ)' : (isDouble ? 'Tàu 2 Tầng (12 chỗ)' : 'Tàu');
+      const vehicleName = isBus ? 'Xe Buýt BRT (6 chỗ)' : (isDouble ? 'Tàu 2 Tầng (12 chỗ)' : 'Tàu Metro');
       const msg = isRecalled ? `+1 ${vehicleName} (Đỗ tại Depot ${line.name})` : `+1 ${vehicleName} (${line.name})`;
       this.addFloatingText(spawnStation.x, spawnStation.y - 30, msg, '#10B981');
     }
@@ -3032,7 +3080,7 @@ export class MetroEngine {
   }
 
   /**
-   * Recalls 1 train from a specific line back to the depot / inventory
+   * Recalls 1 train or BRT bus from a specific line back to depot / inventory
    */
   public removeTrainFromLine(lineId: string): boolean {
     const line = this.state.lines.find(l => l.id === lineId);
@@ -3050,21 +3098,41 @@ export class MetroEngine {
       station.passengers.push(...trainToRemove.passengers);
     }
 
-    // Return train and carriages to inventory
-    this.state.inventory.unassignedTrains++;
-    this.state.inventory.carriages += trainToRemove.carriagesCount;
+    const isBus = line?.type === 'feeder_bus' || trainToRemove.vehicleType === 'bus';
+
+    // Return train / bus and carriages to inventory
+    if (isBus) {
+      this.state.inventory.unassignedBuses = (this.state.inventory.unassignedBuses ?? 0) + 1;
+    } else {
+      this.state.inventory.unassignedTrains++;
+      this.state.inventory.carriages += trainToRemove.carriagesCount;
+    }
 
     // Remove from trains list
     this.state.trains = this.state.trains.filter(t => t.id !== trainToRemove.id);
     soundEngine.playDisconnect();
 
     // Floating feedback notification
+    const vehicleName = isBus ? 'Xe Buýt BRT' : 'Tàu Metro';
     if (station) {
-      this.addFloatingText(station.x, station.y - 30, `-1 Tàu (${line?.name || ''}) ➔ Đã thu hồi về kho`, '#F59E0B');
+      this.addFloatingText(station.x, station.y - 30, `-1 ${vehicleName} (${line?.name || ''}) ➔ Đã thu hồi về kho`, '#F59E0B');
     } else {
-      this.addFloatingText(740, 500, `-1 Tàu ➔ Đã thu hồi về kho`, '#F59E0B');
+      this.addFloatingText(740, 500, `-1 ${vehicleName} ➔ Đã thu hồi về kho`, '#F59E0B');
     }
 
+    return true;
+  }
+
+  public buyBus(): boolean {
+    const busCount = this.state.trains.filter(t => t.vehicleType === 'bus').length + (this.state.inventory.unassignedBuses ?? 0);
+    const cost = 300 + busCount * 50;
+    if (this.state.money < cost) return false;
+
+    this.state.money -= cost;
+    this.state.inventory.unassignedBuses = (this.state.inventory.unassignedBuses ?? 0) + 1;
+    this.state.stats.totalExpenses = (this.state.stats.totalExpenses || 0) + cost;
+    soundEngine.playBusHorn();
+    this.addFloatingText(740, 500, `+1 Xe Buýt Nhanh BRT (-$${cost})`, '#10B981');
     return true;
   }
 
@@ -3509,6 +3577,7 @@ export class MetroEngine {
     this.state.inventory = {
       availableLines: scenario.initialLines ?? 3,
       unassignedTrains: scenario.initialTrains ?? 2,
+      unassignedBuses: 2,
       carriages: scenario.initialCarriages ?? 1,
       interchangeTokens: 1,
       tunnelTokens: 2
@@ -3593,6 +3662,7 @@ export class MetroEngine {
         this.state.inventory = {
           availableLines: data.inventory.availableLines ?? 3,
           unassignedTrains: data.inventory.unassignedTrains ?? 2,
+          unassignedBuses: data.inventory.unassignedBuses ?? 2,
           carriages: data.inventory.carriages ?? 1,
           doubleDeckerCarriages: data.inventory.doubleDeckerCarriages ?? 0,
           doubleDeckerTrains: data.inventory.doubleDeckerTrains ?? 0,
@@ -3835,9 +3905,13 @@ export class MetroEngine {
           const shapes = this.state.stations.map(s => s.shape).filter(sh => sh !== station.shape);
           if (shapes.length > 0) {
             const targetShape = shapes[Math.floor(Math.random() * shapes.length)];
+            const matchSt = this.state.stations.filter(s => s.shape === targetShape && s.id !== station.id);
+            const destSt = matchSt.length > 0 ? matchSt[Math.floor(Math.random() * matchSt.length)] : undefined;
             station.passengers.push({
               id: `p-surge-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
               targetShape,
+              targetStationId: destSt?.id,
+              targetStationName: destSt?.name,
               spawnTime: Date.now(),
               stationId: station.id
             });

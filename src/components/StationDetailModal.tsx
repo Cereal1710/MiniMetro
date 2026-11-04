@@ -4,6 +4,7 @@ import { Station, MetroLine, StationShape } from '../types/game';
 
 interface StationDetailModalProps {
   station: Station | null;
+  allStations?: Station[];
   lines: MetroLine[];
   hasInterchangeToken: boolean;
   theme: 'dark' | 'light';
@@ -26,8 +27,19 @@ const SHAPE_NAMES: Record<StationShape, { vi: string; en: string }> = {
   pentagon: { vi: 'Hình Ngũ Giác', en: 'Pentagon' },
 };
 
+const SHAPE_ICONS: Record<StationShape, string> = {
+  circle: '●',
+  triangle: '▲',
+  square: '■',
+  diamond: '◆',
+  star: '★',
+  cross: '✚',
+  pentagon: '⬠',
+};
+
 export const StationDetailModal: React.FC<StationDetailModalProps> = ({
   station,
+  allStations = [],
   lines,
   hasInterchangeToken,
   theme,
@@ -44,11 +56,54 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
 
   const linesServingStation = lines.filter(l => l.stationIds.includes(station.id));
 
-  // Count passenger breakdown by target shape
-  const shapeCounts = station.passengers.reduce((acc, p) => {
-    acc[p.targetShape] = (acc[p.targetShape] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // Group waiting passengers by target station: <icon> <Tên ga> <số khách cần đến ga đó>
+  interface StationPassengerDest {
+    key: string;
+    shape: StationShape;
+    stationName: string;
+    count: number;
+  }
+
+  const destinationMap = new Map<string, StationPassengerDest>();
+
+  for (const p of station.passengers) {
+    let targetName = p.targetStationName;
+    let shape = p.targetShape;
+
+    if (!targetName && p.targetStationId && allStations.length > 0) {
+      const found = allStations.find(s => s.id === p.targetStationId);
+      if (found) {
+        targetName = found.name;
+        shape = found.shape;
+      }
+    }
+
+    if (!targetName) {
+      const matching = allStations.filter(s => s.shape === p.targetShape && s.id !== station.id);
+      if (matching.length > 0) {
+        const hash = p.id.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+        const st = matching[Math.abs(hash) % matching.length];
+        targetName = st.name;
+      } else {
+        targetName = lang === 'vi' ? SHAPE_NAMES[p.targetShape]?.vi : SHAPE_NAMES[p.targetShape]?.en;
+      }
+    }
+
+    const key = `${shape}___${targetName}`;
+    const existing = destinationMap.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      destinationMap.set(key, {
+        key,
+        shape,
+        stationName: targetName,
+        count: 1
+      });
+    }
+  }
+
+  const destinationList = Array.from(destinationMap.values()).sort((a, b) => b.count - a.count);
 
   return (
     <div
@@ -167,33 +222,40 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
 
         {/* Waiting Passengers Breakdown */}
         <div className="mb-5">
-          <h3 className="text-xs font-semibold uppercase opacity-60 mb-2">
-            {lang === 'vi' ? 'Hành khách đang chờ theo điểm đến' : 'Waiting Passengers by Destination'}
-          </h3>
-          {Object.keys(shapeCounts).length === 0 ? (
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-semibold uppercase opacity-60">
+              {lang === 'vi' ? 'Hành khách đang chờ theo ga đến' : 'Waiting Passengers by Destination Station'}
+            </h3>
+            {destinationList.length > 0 && (
+              <span className="text-[11px] font-mono opacity-70">
+                {station.passengers.length} {lang === 'vi' ? 'khách' : 'passengers'}
+              </span>
+            )}
+          </div>
+          {destinationList.length === 0 ? (
             <p className="text-xs opacity-50 italic">
               {lang === 'vi' ? 'Không có khách chờ. Ga thông thoáng!' : 'No passengers waiting. Station is clear!'}
             </p>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(shapeCounts).map(([sh, count]) => (
+            <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+              {destinationList.map(dest => (
                 <div
-                  key={sh}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-medium ${
-                    isDark ? 'bg-neutral-800 border-neutral-700' : 'bg-neutral-100 border-neutral-300'
+                  key={dest.key}
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs transition ${
+                    isDark ? 'bg-neutral-800/80 border-neutral-700/80 text-neutral-200' : 'bg-neutral-100 border-neutral-200 text-neutral-800'
                   }`}
                 >
-                  <span className="font-bold">
-                    {sh === 'circle' && '●'}
-                    {sh === 'triangle' && '▲'}
-                    {sh === 'square' && '■'}
-                    {sh === 'diamond' && '◆'}
-                    {sh === 'star' && '★'}
-                    {sh === 'cross' && '✚'}
-                    {sh === 'pentagon' && '⬠'}
+                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                    <span className="font-bold text-sm text-emerald-400 shrink-0">
+                      {SHAPE_ICONS[dest.shape] || '●'}
+                    </span>
+                    <span className="font-semibold truncate">
+                      {dest.stationName}
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-[11px] shrink-0 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                    {dest.count} {lang === 'vi' ? 'khách' : 'pax'}
                   </span>
-                  <span>{lang === 'vi' ? SHAPE_NAMES[sh as StationShape]?.vi : SHAPE_NAMES[sh as StationShape]?.en}</span>
-                  <span className="font-mono font-bold ml-1 opacity-80">x{count}</span>
                 </div>
               ))}
             </div>

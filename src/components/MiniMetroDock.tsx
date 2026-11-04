@@ -46,6 +46,7 @@ interface MiniMetroDockProps {
   onToggleRouteManager?: () => void;
   onOpenShop?: () => void;
   onOpenBank?: () => void;
+  onOpenInspector?: () => void;
   onToggleCreative?: () => void;
   onRenameLine?: (lineId: string, newName: string) => void;
 }
@@ -89,6 +90,7 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
   onToggleRouteManager,
   onOpenShop,
   onOpenBank,
+  onOpenInspector,
   onToggleCreative,
   onRenameLine
 }) => {
@@ -529,6 +531,20 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
             </span>
           </div>
 
+          {/* Spare BRT Buses */}
+          <div
+            onClick={onOpenShop}
+            title={lang === 'vi' ? `Xe buýt BRT dự phòng: ${inventory.unassignedBuses ?? 0} (Bấm để mở Shop)` : `Spare BRT Buses: ${inventory.unassignedBuses ?? 0} (Click to open Shop)`}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg cursor-pointer transition active:scale-95 ${
+              isDark ? 'hover:bg-neutral-800' : 'hover:bg-neutral-100'
+            }`}
+          >
+            <span className="text-base leading-none">🚌</span>
+            <span className="font-mono font-bold text-xs text-amber-400">
+              {inventory.unassignedBuses ?? 0}
+            </span>
+          </div>
+
           {/* Extra Carriages */}
           <div
             onClick={onOpenShop}
@@ -624,6 +640,23 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
             >
               <Landmark className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{lang === 'vi' ? 'Vay vốn' : 'Bank'}</span>
+            </button>
+          )}
+
+          {/* Thanh tra tuyến */}
+          {onOpenInspector && (
+            <button
+              type="button"
+              onClick={onOpenInspector}
+              title={lang === 'vi' ? 'Thanh tra tuyến (Thưởng $300/ga, tối thiểu 5 ga)' : 'Line Inspector ($300/station, min 5 stations)'}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer active:scale-95 ${
+                isDark
+                  ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border-amber-500/30'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300'
+              }`}
+            >
+              <span>👮</span>
+              <span className="hidden sm:inline">{lang === 'vi' ? 'Thanh tra' : 'Inspector'}</span>
             </button>
           )}
 

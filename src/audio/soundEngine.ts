@@ -599,6 +599,38 @@ class SoundEngine {
   }
 
   /**
+   * Authentic Double-Honk City Bus Horn (Beep-Beep!)
+   */
+  public playBusHorn() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      [0, 0.12].forEach((offset) => {
+        [349.23, 440].forEach((freq) => {
+          const osc = this.ctx!.createOscillator();
+          const gain = this.ctx!.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + offset);
+
+          gain.gain.setValueAtTime(0.001, now + offset);
+          gain.gain.linearRampToValueAtTime(0.14 * this.volume, now + offset + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.09);
+
+          osc.connect(gain);
+          gain.connect(this.ctx!.destination);
+
+          osc.start(now + offset);
+          osc.stop(now + offset + 0.1);
+        });
+      });
+    } catch {}
+  }
+
+  /**
    * Futuristic Turbo Nitro Boost whoosh
    */
   public playTurboBoost() {

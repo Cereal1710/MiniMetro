@@ -501,6 +501,7 @@ export default function App() {
     passengersDelivered: number;
     trainsCount: number;
     unassignedTrains: number;
+    unassignedBuses?: number;
     stations: Station[];
     lines: MetroLine[];
     trains: Train[];
@@ -534,6 +535,7 @@ export default function App() {
       passengersDelivered: engine.state.stats.totalPassengersDelivered,
       trainsCount: engine.state.trains.length,
       unassignedTrains: engine.state.inventory.unassignedTrains,
+      unassignedBuses: engine.state.inventory.unassignedBuses ?? 0,
       stations: [...engine.state.stations],
       lines: [...engine.state.lines],
       trains: [...engine.state.trains],
@@ -593,6 +595,7 @@ export default function App() {
       passengersDelivered: engine.state.stats.totalPassengersDelivered,
       trainsCount: engine.state.trains.length,
       unassignedTrains: engine.state.inventory.unassignedTrains,
+      unassignedBuses: engine.state.inventory.unassignedBuses ?? 0,
       stations: [...engine.state.stations],
       lines: [...engine.state.lines],
       trains: [...engine.state.trains],
@@ -757,6 +760,7 @@ export default function App() {
         passengersDelivered: engine.state.stats.totalPassengersDelivered,
         trainsCount: engine.state.trains.length,
         unassignedTrains: engine.state.inventory.unassignedTrains,
+        unassignedBuses: engine.state.inventory.unassignedBuses ?? 0,
         stations: [...engine.state.stations],
         lines: [...engine.state.lines],
         trains: [...engine.state.trains],
@@ -1875,6 +1879,7 @@ export default function App() {
           onOpenStartMenu={() => setIsStartMenuOpen(true)}
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onOpenCityManager={() => setIsCityManagerOpen(true)}
+          onOpenInspector={() => setIsInspectorModalOpen(true)}
           onDismissIncident={handleDismissIncident}
           citizenSatisfaction={state.stats.citizenSatisfaction}
           activeSurgeEvent={state.activeSurgeEvent}
@@ -1937,6 +1942,7 @@ export default function App() {
             onStartPlacingStation={() => setIsPlacingStation(prev => !prev)}
             onClearAllStations={handleClearAllStations}
             onOpenShop={() => setIsShopModalOpen(true)}
+            onOpenInspector={() => setIsInspectorModalOpen(true)}
             onOpenLineSettings={(line) => setEditingSettingsLine(line)}
             onToggleLineDepot={handleToggleLineDepot}
             onRenameLine={handleRenameLine}
@@ -1975,6 +1981,7 @@ export default function App() {
               currentDayIndex={state.currentDayIndex}
               weather={state.weather}
               activeIncident={state.activeIncident}
+              activeSurgeEvent={state.activeSurgeEvent}
               isRushHour={state.isRushHour}
               money={state.money}
               theme={theme}
@@ -2031,6 +2038,7 @@ export default function App() {
               onToggleRouteManager={() => setIsSidebarCollapsed(prev => !prev)}
               onOpenShop={() => setIsShopModalOpen(true)}
               onOpenBank={() => setIsBankModalOpen(true)}
+              onOpenInspector={() => setIsInspectorModalOpen(true)}
               onToggleCreative={() => setIsCreativeToolbarOpen(prev => !prev)}
               onRenameLine={handleRenameLine}
             />
@@ -2239,7 +2247,8 @@ export default function App() {
       {/* Station Detail Modal (Instant Upgrade & Inspect & Remove from Line & Delete Station) */}
       {inspectingStation && (
         <StationDetailModal
-          station={inspectingStation}
+          station={state?.stations.find(s => s.id === inspectingStation.id) || inspectingStation}
+          allStations={state?.stations || []}
           lines={state?.lines || []}
           hasInterchangeToken={(state?.inventory.interchangeTokens || 0) > 0}
           theme={theme}
@@ -2339,6 +2348,7 @@ export default function App() {
           lang={lang}
           onClose={() => setIsShopModalOpen(false)}
           onBuyTrain={() => { engine?.buyTrain(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
+          onBuyBus={() => { engine?.buyBus(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
           onBuyCarriage={() => { engine?.buyCarriage(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
           onBuyLine={() => { engine?.buyLine(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
           onBuyInterchange={() => { engine?.buyInterchangeUpgrade(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
@@ -2435,6 +2445,36 @@ export default function App() {
             }
           }}
           onCancelInspector={() => {
+            if (engineRef.current) {
+              engineRef.current.cancelInspector();
+              syncSnapshot();
+            }
+          }}
+        />
+      )}
+
+      {/* Metro Line Inspector Real-time Active HUD */}
+      {state && state.inspectorState && state.inspectorState.status !== 'idle' && (
+        <InspectorHUD
+          inspectorState={state.inspectorState}
+          stations={state.stations}
+          trains={state.trains}
+          lines={state.lines}
+          theme={theme}
+          lang={lang}
+          onStartSelecting={() => {
+            if (engineRef.current) {
+              engineRef.current.startSelectingInspectorStation();
+              syncSnapshot();
+            }
+          }}
+          onAlightAtStation={() => {
+            if (engineRef.current) {
+              engineRef.current.alightInspectorAtStation();
+              syncSnapshot();
+            }
+          }}
+          onCancel={() => {
             if (engineRef.current) {
               engineRef.current.cancelInspector();
               syncSnapshot();

@@ -53,6 +53,7 @@ interface RouteManagerSidebarProps {
   onStartPlacingStation: () => void;
   onClearAllStations: () => void;
   onOpenShop: () => void;
+  onOpenInspector?: () => void;
   onOpenLineSettings?: (line: MetroLine) => void;
   onToggleLineDepot?: (lineId: string) => void;
   onRenameLine?: (lineId: string, newName: string) => void;
@@ -99,6 +100,7 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
   onStartPlacingStation,
   onClearAllStations,
   onOpenShop,
+  onOpenInspector,
   onOpenLineSettings,
   onToggleLineDepot,
   onRenameLine
@@ -744,13 +746,22 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                   }`}>
                     <div className="flex items-center justify-between text-[10px] font-bold opacity-80 mb-1">
                       <div className="flex items-center gap-1">
-                        <TrainIcon className="w-3 h-3 text-blue-400" />
-                        <span>{lang === 'vi' ? 'Đoàn tàu' : 'Fleet'}</span>
+                        {line.type === 'feeder_bus' ? (
+                          <>
+                            <span className="text-xs">🚌</span>
+                            <span>{lang === 'vi' ? 'Xe buýt BRT' : 'BRT Bus'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <TrainIcon className="w-3 h-3 text-blue-400" />
+                            <span>{lang === 'vi' ? 'Đoàn tàu' : 'Fleet'}</span>
+                          </>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      {/* Minus Train */}
+                      {/* Minus Train / Bus */}
                       <button
                         disabled={trainsOnThisLine.length === 0}
                         onClick={(e) => {
@@ -759,8 +770,12 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                         }}
                         title={
                           trainsOnThisLine.length > 0
-                            ? (lang === 'vi' ? 'Thu hồi 1 tàu về kho dự phòng' : 'Recall 1 train to depot')
-                            : (lang === 'vi' ? 'Tuyến này chưa có tàu chạy' : 'No train on line')
+                            ? (line.type === 'feeder_bus'
+                                ? (lang === 'vi' ? 'Thu hồi 1 xe buýt về kho buýt' : 'Recall 1 bus to depot')
+                                : (lang === 'vi' ? 'Thu hồi 1 tàu về kho dự phòng' : 'Recall 1 train to depot'))
+                            : (line.type === 'feeder_bus'
+                                ? (lang === 'vi' ? 'Tuyến này chưa có xe buýt chạy' : 'No bus on line')
+                                : (lang === 'vi' ? 'Tuyến này chưa có tàu chạy' : 'No train on line'))
                         }
                         className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg font-bold transition touch-manipulation ${
                           trainsOnThisLine.length > 0
@@ -771,25 +786,29 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                         <Minus className="w-4 h-4" />
                       </button>
 
-                      {/* Train Count */}
+                      {/* Train / Bus Count */}
                       <span className="font-mono font-black text-xs sm:text-sm text-blue-400 px-1.5">
                         {trainsOnThisLine.length}
                       </span>
 
-                      {/* Plus Train */}
+                      {/* Plus Train / Bus */}
                       <button
-                        disabled={inventory.unassignedTrains <= 0}
+                        disabled={line.type === 'feeder_bus' ? (inventory.unassignedBuses ?? 0) <= 0 : inventory.unassignedTrains <= 0}
                         onClick={(e) => {
                           e.stopPropagation();
                           onDeployTrain(line.id);
                         }}
                         title={
-                          inventory.unassignedTrains > 0
-                            ? (lang === 'vi' ? `Thêm 1 tàu vào tuyến (Kho còn ${inventory.unassignedTrains} tàu)` : `Deploy 1 train (${inventory.unassignedTrains} in depot)`)
-                            : (lang === 'vi' ? 'Kho hết tàu! Thu hồi từ tuyến khác hoặc mua trong Shop' : 'Depot empty! Recall or buy in Shop')
+                          line.type === 'feeder_bus'
+                            ? (inventory.unassignedBuses ?? 0) > 0
+                              ? (lang === 'vi' ? `Thêm 1 xe buýt BRT (Kho còn ${inventory.unassignedBuses ?? 0} xe)` : `Deploy 1 BRT bus (${inventory.unassignedBuses ?? 0} in depot)`)
+                              : (lang === 'vi' ? 'Kho hết xe buýt! Mua thêm trong Shop' : 'Bus depot empty! Buy in Shop')
+                            : inventory.unassignedTrains > 0
+                              ? (lang === 'vi' ? `Thêm 1 tàu vào tuyến (Kho còn ${inventory.unassignedTrains} tàu)` : `Deploy 1 train (${inventory.unassignedTrains} in depot)`)
+                              : (lang === 'vi' ? 'Kho hết tàu! Thu hồi từ tuyến khác hoặc mua trong Shop' : 'Depot empty! Recall or buy in Shop')
                         }
                         className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg font-bold transition touch-manipulation ${
-                          inventory.unassignedTrains > 0
+                          (line.type === 'feeder_bus' ? (inventory.unassignedBuses ?? 0) > 0 : inventory.unassignedTrains > 0)
                             ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white cursor-pointer active:scale-90'
                             : 'opacity-25 cursor-not-allowed text-neutral-500'
                         }`}
@@ -911,8 +930,8 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
       <div className={`p-3 border-t mt-auto space-y-2.5 ${
         isDark ? 'border-slate-800 bg-slate-900/90' : 'border-neutral-200 bg-neutral-50/90'
       }`}>
-        {/* Quick Inventory Badges (Trains, Carriages, Double-Decker) */}
-        <div className={`grid ${(inventory.doubleDeckerTrains ?? 0) > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-2 text-center`}>
+        {/* Quick Inventory Badges (Trains, BRT Buses, Carriages) */}
+        <div className="grid grid-cols-3 gap-2 text-center">
           {/* Spare Trains in Depot */}
           <div
             onClick={onOpenShop}
@@ -921,12 +940,29 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
               isDark ? 'bg-slate-800/60 border-slate-700/60 hover:border-slate-500' : 'bg-white border-neutral-200 hover:border-neutral-400'
             }`}
           >
-            <div className="flex items-center justify-center gap-1.5 text-[11px] opacity-75 mb-0.5">
+            <div className="flex items-center justify-center gap-1 text-[11px] opacity-75 mb-0.5">
               <TrainIcon className="w-3.5 h-3.5 text-purple-400" />
-              <span>{lang === 'vi' ? 'Tàu chờ' : 'Trains'}</span>
+              <span>{lang === 'vi' ? 'Tàu' : 'Trains'}</span>
             </div>
             <div className="font-mono font-black text-sm text-purple-400">
               {inventory.unassignedTrains}
+            </div>
+          </div>
+
+          {/* Spare BRT Buses in Depot */}
+          <div
+            onClick={onOpenShop}
+            title={lang === 'vi' ? 'Xe buýt BRT dự phòng' : 'Spare BRT buses in depot'}
+            className={`p-2 rounded-xl border transition cursor-pointer ${
+              isDark ? 'bg-slate-800/60 border-slate-700/60 hover:border-slate-500' : 'bg-white border-neutral-200 hover:border-neutral-400'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-1 text-[11px] opacity-75 mb-0.5">
+              <span className="text-xs">🚌</span>
+              <span>{lang === 'vi' ? 'Buýt' : 'Buses'}</span>
+            </div>
+            <div className="font-mono font-black text-sm text-amber-400">
+              {inventory.unassignedBuses ?? 0}
             </div>
           </div>
 
@@ -948,6 +984,17 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
           </div>
 
         </div>
+
+        {/* Inspector Route Trigger Button */}
+        {onOpenInspector && (
+          <button
+            onClick={onOpenInspector}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white font-bold text-xs shadow-md transition cursor-pointer active:scale-98"
+          >
+            <span>👮</span>
+            <span>{lang === 'vi' ? 'Lập lộ trình Thanh tra Tuyến' : 'Line Inspector Itinerary'}</span>
+          </button>
+        )}
 
         {/* Shop Trigger Button */}
         <button
