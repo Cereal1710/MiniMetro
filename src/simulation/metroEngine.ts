@@ -723,28 +723,6 @@ export class MetroEngine {
   private updateTrains(simDt: number) {
     const stationMap = new Map<string, Station>(this.state.stations.map(s => [s.id, s]));
 
-    // Ensure every active line with >= 2 stations has an operating train
-    for (const line of this.state.lines) {
-      if (line.stationIds.length >= 2) {
-        const trainsOnLine = this.state.trains.filter(t => t.lineId === line.id);
-        if (trainsOnLine.length === 0) {
-          this.state.trains.push({
-            id: `train-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            lineId: line.id,
-            carriagesCount: 0,
-            capacity: 6,
-            speed: 45,
-            segmentIndex: 0,
-            progress: 0.1,
-            direction: 1,
-            passengers: [],
-            dwellingTime: 0,
-            isDockedAtDepot: false
-          });
-        }
-      }
-    }
-
     // 0. Staggered Depot Dispatch Headway Loop
     for (const line of this.state.lines) {
       if (line.stationIds.length < 2) continue;
@@ -2671,9 +2649,9 @@ export class MetroEngine {
     line.stationIds.push(stationId);
     soundEngine.playConnect();
 
-    // If this line has at least 2 stations and no train yet, deploy 1 train automatically if available
+    // If this line just reached 2 stations and has no train yet, deploy 1 train automatically if available
     const trainsOnLine = this.state.trains.filter(t => t.lineId === lineId);
-    if (trainsOnLine.length === 0 && this.state.inventory.unassignedTrains > 0) {
+    if (line.stationIds.length === 2 && trainsOnLine.length === 0 && this.state.inventory.unassignedTrains > 0) {
       this.deployTrainToLine(lineId);
     }
 
