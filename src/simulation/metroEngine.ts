@@ -25,7 +25,12 @@ import {
 import { CAMPAIGN_SCENARIOS } from '../data/campaignScenarios';
 import { LINE_PALETTE } from '../data/maps';
 import { distance, segmentCrossesRiver, isPointInWater } from '../utils/geometry';
-import { findNextTransitStep } from './pathfinding';
+import { 
+  findNextTransitStep,
+  canPassengerBoard,
+  shouldPassengerAlightToTransfer,
+  isMatchingDestination
+} from './pathfinding';
 import { soundEngine } from '../audio/soundEngine';
 
 export interface SimulationState {
@@ -1055,24 +1060,12 @@ export class MetroEngine {
     let passengersDeliveredHere = 0;
     let monthlyPassDelivered = 0;
 
-    // Fast transit route cache for this station arrival (avoids duplicate BFS for same destination shape)
-    const transitStepCache = new Map<StationShape, ReturnType<typeof findNextTransitStep>>();
-    const getNextStep = (shape: StationShape) => {
-      if (!transitStepCache.has(shape)) {
-        transitStepCache.set(
-          shape,
-          findNextTransitStep(station.id, shape, this.state.stations, this.state.lines)
-        );
-      }
-      return transitStepCache.get(shape)!;
-    };
-
     // 1. Check Alighting passengers
     const remainingInTrain: Passenger[] = [];
     for (const p of train.passengers) {
       p.stationsTraveled = (p.stationsTraveled || 0) + 1;
 
-      if (p.targetShape === station.shape) {
+      if (isMatchingDestination(station, p.targetShape, p.targetStationId)) {
         // Successful destination reached!
         passengersDeliveredHere++;
         let fare = 0;
@@ -1163,9 +1156,16 @@ export class MetroEngine {
         line.stats.totalPassengers++;
         line.stats.todayPassengers++;
       } else {
-        // Check if passenger should transfer at this station
-        const nextStep = getNextStep(p.targetShape);
-        if (nextStep && nextStep.lineId !== line.id) {
+        // Check if passenger should transfer at this station:
+        // Only alight if this line DOES NOT reach destination, and another line at this station does!
+        const shouldTransfer = shouldPassengerAlightToTransfer(
+          station.id,
+          line,
+          p,
+          this.state.stations,
+          this.state.lines
+        );
+        if (shouldTransfer) {
           // Passenger alights to transfer to another line here
           p.transferCount = (p.transferCount || 0) + 1;
           station.passengers.push(p);
@@ -1238,12 +1238,32 @@ export class MetroEngine {
       const remainingAtStation: Passenger[] = [];
       let boardedCount = 0;
 
+      // Boarding decision cache for this station arrival
+      const boardingCache = new Map<string, boolean>();
+      const checkCanBoard = (p: Passenger) => {
+        const key = `${p.targetShape}_${p.targetStationId || ''}`;
+        if (!boardingCache.has(key)) {
+          boardingCache.set(
+            key,
+            canPassengerBoard(
+              station.id,
+              line,
+              train.direction,
+              p,
+              this.state.stations,
+              this.state.lines,
+              line.trains ? line.trains.length : 1
+            )
+          );
+        }
+        return boardingCache.get(key)!;
+      };
+
       for (const p of station.passengers) {
         const slotsNeeded = p.hasLuggage ? 2 : 1;
         if (slotsNeeded <= availableSlots) {
-          // Does this train/line lead closer to p.targetShape?
-          const nextStep = getNextStep(p.targetShape);
-          if (nextStep && nextStep.lineId === line.id) {
+          // Check if passenger can board this line/train
+          if (checkCanBoard(p)) {
             train.passengers.push(p);
             availableSlots -= slotsNeeded;
             boardedCount++;
