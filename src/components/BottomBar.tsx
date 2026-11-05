@@ -293,7 +293,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
           <Plus className="w-4 h-4" />
           <span>{lang === 'vi' ? 'Tạo tuyến' : 'New Line'}</span>
           <span className="text-[10px] opacity-60">
-            ({standardLinesCount}/{isUnlimitedMode ? '∞' : inventory.availableLines})
+            ({standardLinesCount}/{inventory.availableLines})
           </span>
         </button>
       </div>

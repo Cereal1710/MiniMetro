@@ -234,3 +234,24 @@ export function getCachedUserProfile(): UserProfile | null {
   } catch {}
   return null;
 }
+
+// =========================================================================
+// 8. XOÁ VĨNH VIỄN TÀI KHOẢN VÀ DỮ LIỆU TRÊN SERVER
+// =========================================================================
+export async function deleteAccount(userId: string, password?: string): Promise<void> {
+  await postJson('/api/auth/delete-account', { userId, password });
+
+  // Xoá hồ sơ và các file cache trên trình duyệt
+  localStorage.removeItem(STORAGE_ACTIVE_USER_KEY);
+  try {
+    const keys = Object.keys(localStorage);
+    for (const k of keys) {
+      if (k.startsWith(`metro_city_save_${userId}_`)) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch {}
+
+  notifyAuthListeners();
+}
+

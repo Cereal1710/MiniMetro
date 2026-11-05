@@ -121,8 +121,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               type="button"
               onClick={() => { setMode('login'); setError(null); }}
               className={`py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 ${mode === 'login'
-                  ? 'bg-cyan-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
                 }`}
             >
               <LogIn className="w-3.5 h-3.5" />
@@ -132,8 +132,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               type="button"
               onClick={() => { setMode('register'); setError(null); }}
               className={`py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 ${mode === 'register'
-                  ? 'bg-cyan-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
                 }`}
             >
               <UserPlus className="w-3.5 h-3.5" />

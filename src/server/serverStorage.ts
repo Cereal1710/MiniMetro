@@ -177,3 +177,48 @@ export function loadCityProgress(userId: string, cityId: string): ServerSaveData
   }
 }
 
+// Xoá vĩnh viễn tài khoản người dùng và toàn bộ dữ liệu saves liên quan trên Server
+export function deleteUserAccount(userId: string, password?: string): boolean {
+  ensureStorage();
+  const users = getAllUsers();
+  const userIndex = users.findIndex(u => u.id === userId);
+
+  if (userIndex === -1) {
+    throw new Error('Không tìm thấy tài khoản để xoá trên Server!');
+  }
+
+  const user = users[userIndex];
+  // Nếu tài khoản có mật khẩu (không phải tài khoản khách vô danh), yêu cầu xác thực mật khẩu
+  if (user.passwordHash) {
+    if (!password) {
+      throw new Error('Vui lòng nhập mật khẩu hiện tại để xác nhận xoá tài khoản.');
+    }
+    const pHash = hashPassword(password);
+    if (user.passwordHash !== pHash) {
+      throw new Error('Mật khẩu xác nhận không chính xác!');
+    }
+  }
+
+  // 1. Xoá user khỏi danh sách
+  users.splice(userIndex, 1);
+  saveAllUsers(users);
+
+  // 2. Xoá tất cả các file save game của user này
+  const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '');
+  if (safeUserId && fs.existsSync(SAVES_DIR)) {
+    try {
+      const files = fs.readdirSync(SAVES_DIR);
+      for (const file of files) {
+        if (file.startsWith(`${safeUserId}_`) && file.endsWith('.json')) {
+          fs.unlinkSync(path.join(SAVES_DIR, file));
+        }
+      }
+    } catch (err) {
+      console.warn('Lỗi khi dọn dẹp các file save của tài khoản đã xoá:', err);
+    }
+  }
+
+  return true;
+}
+
+

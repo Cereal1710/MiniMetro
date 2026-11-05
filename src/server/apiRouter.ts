@@ -3,6 +3,7 @@ import {
   registerUser,
   loginUser,
   createGuestUser,
+  deleteUserAccount,
   saveCityProgress,
   loadCityProgress,
   getAllUsers
@@ -120,6 +121,21 @@ export async function handleApiRequest(
           createdAt: guest.createdAt,
           lastLoginAt: guest.lastLoginAt
         }
+      });
+      return true;
+    }
+
+    // 4b. Xoá tài khoản vĩnh viễn: POST /api/auth/delete-account
+    if (url === '/api/auth/delete-account' && req.method === 'POST') {
+      const body = await parseJsonBody(req);
+      if (!body.userId) {
+        sendJson(res, 400, { success: false, error: 'Thiếu thông tin userId cần xoá!' });
+        return true;
+      }
+      deleteUserAccount(body.userId, body.password);
+      sendJson(res, 200, {
+        success: true,
+        message: 'Tài khoản và toàn bộ dữ liệu đã được xoá vĩnh viễn khỏi Server.'
       });
       return true;
     }

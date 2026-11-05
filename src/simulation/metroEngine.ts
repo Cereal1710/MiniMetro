@@ -129,12 +129,15 @@ export class MetroEngine {
   public toggleUnlimitedMode() {
     this.isUnlimitedMode = !this.isUnlimitedMode;
     if (this.isUnlimitedMode) {
-      this.state.inventory.availableLines = 99;
-      this.state.inventory.unassignedTrains = 99;
-      this.state.inventory.unassignedBuses = 99;
-      this.state.inventory.carriages = 99;
+      // Chế độ Sáng tạo: Cấp 15 tuyến Metro (theo bảng 15 màu chuẩn), thêm $5.000.000 vào tài khoản
+      this.state.inventory.availableLines = 15;
+      this.state.money += 5000000;
+      this.state.inventory.unassignedTrains = Math.max(this.state.inventory.unassignedTrains, 20);
+      this.state.inventory.unassignedBuses = Math.max(this.state.inventory.unassignedBuses, 20);
+      this.state.inventory.carriages = Math.max(this.state.inventory.carriages, 20);
       this.state.inventory.tunnelTokens = 99;
       this.state.inventory.interchangeTokens = 99;
+      this.addFloatingText(740, 470, '✨ Đã bật Sáng tạo: +$5.000.000 & 15 tuyến Metro!', '#10B981');
     }
   }
 
@@ -2250,7 +2253,6 @@ export class MetroEngine {
   }
 
   public canCreateLine(type: MetroLineType = 'metro'): boolean {
-    if (this.isUnlimitedMode) return true;
     if (type === 'feeder_bus' || type === 'double_decker') return true;
     return this.getStandardLinesCount() < this.state.inventory.availableLines;
   }
@@ -2266,12 +2268,10 @@ export class MetroEngine {
     textColor: string,
     type: MetroLineType = 'metro'
   ): MetroLine | null {
-    if (!this.isUnlimitedMode) {
-      if (type !== 'feeder_bus' && type !== 'double_decker') {
-        if (this.getStandardLinesCount() >= this.state.inventory.availableLines) {
-          // Fall back to feeder_bus if standard quota reached
-          type = 'feeder_bus';
-        }
+    if (type !== 'feeder_bus' && type !== 'double_decker') {
+      if (this.getStandardLinesCount() >= this.state.inventory.availableLines) {
+        // Hạn mức tối đa số tuyến Metro (tối đa 15 tuyến chuẩn), chuyển sang xe buýt gom nếu vượt quá
+        type = 'feeder_bus';
       }
     }
 
@@ -2318,15 +2318,13 @@ export class MetroEngine {
     const oldType = line.type || 'metro';
     if (oldType === type) return true;
 
-    // Quota check: switching to standard rail requires available standard line slot
-    if (!this.isUnlimitedMode) {
-      if ((type === 'metro' || type === 'intercity' || type === 'high_speed') && (oldType === 'feeder_bus' || oldType === 'double_decker')) {
-        const currentStandard = this.getStandardLinesCount();
-        if (currentStandard >= this.state.inventory.availableLines) {
-          soundEngine.playDisconnect();
-          this.addFloatingText(740, 470, `❌ Hết hạn mức tuyến Metro (${this.state.inventory.availableLines} tuyến)! Mua thêm trong Shop.`, '#EF4444');
-          return false;
-        }
+    // Quota check: switching to standard rail requires available standard line slot (max 15 lines)
+    if ((type === 'metro' || type === 'intercity' || type === 'high_speed') && (oldType === 'feeder_bus' || oldType === 'double_decker')) {
+      const currentStandard = this.getStandardLinesCount();
+      if (currentStandard >= this.state.inventory.availableLines) {
+        soundEngine.playDisconnect();
+        this.addFloatingText(740, 470, `❌ Hết hạn mức tuyến Metro (${this.state.inventory.availableLines} tuyến)!`, '#EF4444');
+        return false;
       }
     }
 

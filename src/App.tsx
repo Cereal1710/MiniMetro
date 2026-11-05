@@ -2496,6 +2496,8 @@ export default function App() {
             if (engine) {
               engine.setGameMode('zen');
               engine.isUnlimitedMode = true;
+              engine.state.inventory.availableLines = 15;
+              engine.state.money += 5000000;
               engine.state.isGameOver = false;
               engine.state.gameOverReason = null;
               engine.state.gameOverStationId = null;
@@ -2503,6 +2505,7 @@ export default function App() {
                 s.overcrowdedTimer = 0;
               });
               setIsCreativeToolbarOpen(true);
+              engine.addFloatingText(740, 470, '✨ Đã bật Sáng tạo: +$5.000.000 & 15 tuyến Metro!', '#10B981');
               handleResetCamera();
               syncSnapshot();
             }
@@ -2662,11 +2665,13 @@ export default function App() {
         theme={theme}
       />
 
-      {/* User Login & Register Modal (Local Storage) */}
+      {/* User Login, Register & Account Management Modal (Server Storage) */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onSuccess={handleLoginSuccess}
+        currentUser={currentUser}
+        onLogout={handleLogout}
         lang={lang}
       />
 
@@ -2710,7 +2715,7 @@ export default function App() {
         onResetRivers={() => {}}
         onAddQuickLine={() => {
           if (engine) {
-            engine.state.inventory.availableLines++;
+            engine.state.inventory.availableLines = Math.min(15, engine.state.inventory.availableLines + 1);
             syncSnapshot();
           }
         }}

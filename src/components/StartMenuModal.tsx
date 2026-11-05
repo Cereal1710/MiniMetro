@@ -408,6 +408,37 @@ export const StartMenuModal: React.FC<StartMenuModalProps> = ({
                 {lang === 'vi' ? 'Xem hướng dẫn' : 'View Guide'}
               </button>
             </div>
+
+            {/* Account & Storage Management (with Delete Account) */}
+            <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
+              isDark ? 'bg-neutral-900/90 border-neutral-800' : 'bg-white border-neutral-200 shadow-xs'
+            }`}>
+              <div>
+                <div className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                  <span>{lang === 'vi' ? 'Tài khoản người chơi' : 'Player Account'}</span>
+                  {currentUser && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono">
+                      {currentUser.username}
+                    </span>
+                  )}
+                </div>
+                <div className={`text-xs ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                  {currentUser
+                    ? (lang === 'vi' ? 'Quản lý tài khoản, đồng bộ & xoá tài khoản' : 'Manage profile, sync & delete account')
+                    : (lang === 'vi' ? 'Đăng nhập để đồng bộ tiến trình lên Server' : 'Log in to sync progress on Server')}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenAuth}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold cursor-pointer border flex items-center gap-1.5 ${
+                  isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-white border-neutral-700' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border-neutral-300'
+                }`}
+              >
+                <User className="w-3.5 h-3.5 text-cyan-400" />
+                <span>{currentUser ? (lang === 'vi' ? 'Quản lý / Xoá' : 'Manage / Delete') : (lang === 'vi' ? 'Đăng nhập' : 'Log In')}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
