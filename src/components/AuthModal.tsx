@@ -49,20 +49,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error(err);
-      const msg = err?.code || err?.message || String(err);
-      if (msg.includes('auth/email-already-in-use') || msg.includes('already in use')) {
-        setError(lang === 'vi' ? 'Tên này đã được tạo trước đó. Nếu đây là tài khoản của bạn, vui lòng bấm sang tab "Đăng nhập".' : 'Username already taken, please choose another.');
-      } else if (msg.includes('auth/user-not-found') || msg.includes('user not found')) {
-        setError(lang === 'vi' ? 'Tài khoản này chưa tồn tại! Hãy bấm tab "Đăng ký" bên trên để tạo tài khoản mới.' : 'Account not found. Please switch to Sign Up.');
-      } else if (msg.includes('auth/invalid-credential') || msg.includes('wrong-password')) {
-        setError(lang === 'vi' ? 'Tên đăng nhập hoặc mật khẩu không khớp. Nếu bạn chưa có tài khoản, hãy bấm tab "Đăng ký".' : 'Invalid username or password. If you do not have an account, switch to Sign Up.');
-      } else if (msg.includes('auth/operation-not-allowed')) {
-        setError(lang === 'vi' ? 'Đăng nhập mật khẩu chưa được bật trong Firebase. Bạn có thể chọn "Chơi với tư cách Khách" bên dưới để chơi ngay.' : 'Password login is disabled. You can play as Guest below.');
-      } else if (msg.includes('network-request-failed')) {
-        setError(lang === 'vi' ? 'Không thể kết nối tới Firebase (lỗi mạng). Bạn có thể bấm "Chơi với tư cách Khách" để chơi ngay.' : 'Cannot connect to Firebase. You can play as Guest.');
-      } else {
-        setError(msg);
-      }
+      setError(err?.message || String(err));
     } finally {
       setLoading(false);
     }
@@ -102,151 +89,149 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         <div className="p-5 sm:p-6 overflow-y-auto overflow-x-hidden relative z-10 scrollbar-thin">
 
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-cyan-400" />
+          {/* Header */}
+          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-white">
+                  {mode === 'login'
+                    ? (lang === 'vi' ? 'Đăng nhập Tài khoản' : 'Account Login')
+                    : (lang === 'vi' ? 'Đăng ký Tài khoản Mới' : 'Create New Account')}
+                </h2>
+                <p className="text-[10px] text-cyan-400/80 font-mono">
+                  {lang === 'vi' ? 'Lưu trữ Cục bộ & Bảo mật' : 'Local & Secure Storage'}
+                </p>
+              </div>
             </div>
+
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-200 transition p-1.5 rounded-lg hover:bg-slate-800 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Tab switch */}
+          <div className="grid grid-cols-2 gap-1 p-1 my-4 bg-slate-950/60 rounded-xl border border-slate-800">
+            <button
+              type="button"
+              onClick={() => { setMode('login'); setError(null); }}
+              className={`py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 ${mode === 'login'
+                  ? 'bg-cyan-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+                }`}
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>{lang === 'vi' ? 'Đăng nhập' : 'Login'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('register'); setError(null); }}
+              className={`py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 ${mode === 'register'
+                  ? 'bg-cyan-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+                }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>{lang === 'vi' ? 'Đăng ký' : 'Sign Up'}</span>
+            </button>
+          </div>
+
+          {/* Error Alert */}
+          {error && (
+            <div className="mb-4 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-3.5">
             <div>
-              <h2 className="text-sm font-bold text-white">
-                {mode === 'login'
-                  ? (lang === 'vi' ? 'Đăng nhập Tài khoản' : 'Account Login')
-                  : (lang === 'vi' ? 'Đăng ký Tài khoản Mới' : 'Create New Account')}
-              </h2>
-              <p className="text-[10px] text-cyan-400/80 font-mono">
-                {lang === 'vi' ? 'Lưu trữ Cục bộ & Bảo mật' : 'Local & Secure Storage'}
-              </p>
+              <label className="block text-xs font-medium text-slate-300 mb-1">
+                {lang === 'vi' ? 'Tên đăng nhập (Username)' : 'Username'}
+              </label>
+              <div className="relative">
+                <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder={lang === 'vi' ? 'Nhập tên đăng nhập...' : 'Enter username...'}
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition"
+                  autoFocus
+                  required
+                />
+              </div>
             </div>
-          </div>
 
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-200 transition p-1.5 rounded-lg hover:bg-slate-800 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Tab switch */}
-        <div className="grid grid-cols-2 gap-1 p-1 my-4 bg-slate-950/60 rounded-xl border border-slate-800">
-          <button
-            type="button"
-            onClick={() => { setMode('login'); setError(null); }}
-            className={`py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 ${
-              mode === 'login'
-                ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>{lang === 'vi' ? 'Đăng nhập' : 'Login'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode('register'); setError(null); }}
-            className={`py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 ${
-              mode === 'register'
-                ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>{lang === 'vi' ? 'Đăng ký' : 'Sign Up'}</span>
-          </button>
-        </div>
-
-        {/* Error Alert */}
-        {error && (
-          <div className="mb-4 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-3.5">
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">
-              {lang === 'vi' ? 'Tên đăng nhập (Username)' : 'Username'}
-            </label>
-            <div className="relative">
-              <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder={lang === 'vi' ? 'Nhập tên đăng nhập...' : 'Enter username...'}
-                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition"
-                autoFocus
-                required
-              />
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1">
+                {lang === 'vi' ? 'Mật khẩu' : 'Password'}
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder={lang === 'vi' ? 'Tối thiểu 6 ký tự...' : 'Min 6 characters...'}
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition"
+                  required
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">
-              {lang === 'vi' ? 'Mật khẩu' : 'Password'}
-            </label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder={lang === 'vi' ? 'Tối thiểu 6 ký tự...' : 'Min 6 characters...'}
-                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition"
-                required
-              />
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white shadow-lg shadow-cyan-950/40 transition cursor-pointer flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
+            >
+              {loading ? (
+                <span className="animate-pulse">{lang === 'vi' ? 'Đang xử lý...' : 'Processing...'}</span>
+              ) : mode === 'login' ? (
+                <>
+                  <LogIn className="w-4 h-4" />
+                  <span>{lang === 'vi' ? 'Đăng nhập' : 'Log In'}</span>
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4" />
+                  <span>{lang === 'vi' ? 'Tạo tài khoản' : 'Create Account'}</span>
+                </>
+              )}
+            </button>
+
+            {/* Quick 1-Click Guest Option */}
+            <div className="relative my-3 text-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-800" />
+              </div>
+              <span className="relative px-2 bg-slate-900 text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+                {lang === 'vi' ? 'Hoặc' : 'Or'}
+              </span>
             </div>
+
+            <button
+              type="button"
+              onClick={handleGuestLogin}
+              disabled={loading}
+              className="w-full py-2 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>{lang === 'vi' ? 'Chơi ngay với tư cách Khách (Không cần mật khẩu)' : 'Play as Guest (Instant Access)'}</span>
+            </button>
+          </form>
+
+          <div className="mt-4 pt-3 border-t border-slate-800 text-center text-[10px] text-slate-400">
+            {lang === 'vi'
+              ? 'Dữ liệu được lưu trữ trực tiếp trên thiết bị (Không cần tài khoản Google)'
+              : 'Data securely stored locally on this device (No Google account needed)'}
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white shadow-lg shadow-cyan-950/40 transition cursor-pointer flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
-          >
-            {loading ? (
-              <span className="animate-pulse">{lang === 'vi' ? 'Đang xử lý...' : 'Processing...'}</span>
-            ) : mode === 'login' ? (
-              <>
-                <LogIn className="w-4 h-4" />
-                <span>{lang === 'vi' ? 'Đăng nhập' : 'Log In'}</span>
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-4 h-4" />
-                <span>{lang === 'vi' ? 'Tạo tài khoản' : 'Create Account'}</span>
-              </>
-            )}
-          </button>
-
-          {/* Quick 1-Click Guest Option */}
-          <div className="relative my-3 text-center">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-800" />
-            </div>
-            <span className="relative px-2 bg-slate-900 text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-              {lang === 'vi' ? 'Hoặc' : 'Or'}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGuestLogin}
-            disabled={loading}
-            className="w-full py-2 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>{lang === 'vi' ? 'Chơi ngay với tư cách Khách (Không cần mật khẩu)' : 'Play as Guest (Instant Access)'}</span>
-          </button>
-        </form>
-
-        <div className="mt-4 pt-3 border-t border-slate-800 text-center text-[10px] text-slate-400">
-          {lang === 'vi'
-            ? 'Dữ liệu được lưu trữ trực tiếp trên thiết bị (Không cần tài khoản Google)'
-            : 'Data securely stored locally on this device (No Google account needed)'}
-        </div>
         </div>
       </div>
     </div>
