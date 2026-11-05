@@ -1671,6 +1671,31 @@ export function renderScene(
       ctx.fill();
     }
 
+    // Closed station barrier & badge
+    if (station.isClosed) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(station.x, station.y, baseRadius + 7, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.22)';
+      ctx.fill();
+      ctx.strokeStyle = '#EF4444';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#EF4444';
+      ctx.beginPath();
+      ctx.roundRect(station.x - 28, station.y - baseRadius - 24, 56, 16, 4);
+      ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⛔ ĐÓNG', station.x, station.y - baseRadius - 16);
+      ctx.restore();
+    }
+
     // Dual-Stage Circular Progress Gauges:
     // When hideStationIcons is toggled, also hide the occupancy ring and the red circular overcrowding indicators
     if (!options.hideStationIcons) {
@@ -1819,6 +1844,21 @@ export function renderScene(
 
       ctx.fillStyle = textColor;
       ctx.fillText(name, station.x, tagY);
+
+      // Render station amenities mini pills below name tag
+      const amenities: string[] = [];
+      if (station.hasCoffeeKiosk) amenities.push('☕');
+      if (station.hasSolarRoof) amenities.push('☀️');
+      if (station.isTodHub) amenities.push('🏢');
+      if (station.hasParkAndRide) amenities.push('🅿️');
+      if (station.hasFeederStation) amenities.push('🛵');
+
+      if (amenities.length > 0) {
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(amenities.join(' '), station.x, tagY + 18);
+      }
     }
 
     // Waiting Passengers Grouped Display: <logo ga> <so khach> (e.g. ▲ 6, ■ 2)

@@ -124,6 +124,7 @@ export class MetroEngine {
   public maintenanceProtectedToday: boolean = false;
   private nightMaintenanceAnnouncedToday: boolean = false;
   public activeExpoStationId: string | null = null;
+  private hourlyIncomeTimer: number = 0;
 
   public toggleUnlimitedMode() {
     this.isUnlimitedMode = !this.isUnlimitedMode;
@@ -387,6 +388,13 @@ export class MetroEngine {
     const isEveningRush = h >= 17.0 && h <= 19.5;
     this.state.isRushHour = isMorningRush || isEveningRush;
 
+    // Periodic Hourly Station Amenities & Feeder Process (Kiosk, Solar, TOD, Feeder)
+    this.hourlyIncomeTimer += hoursPerSecond * simDt;
+    if (this.hourlyIncomeTimer >= 1.0) {
+      this.hourlyIncomeTimer -= 1.0;
+      this.processHourlyStationAmenities(h);
+    }
+
     // Feature 10: Night Maintenance Railcar Sweep (05:00 Morning Inspection Complete)
     if (h >= 5.0 && h < 5.4 && !this.nightMaintenanceAnnouncedToday) {
       this.nightMaintenanceAnnouncedToday = true;
@@ -613,13 +621,21 @@ export class MetroEngine {
     if (existingShapes.length < 2) return;
 
     // Spawn rate multiplier: higher during rush hour & during rain/storm/flood (+35%)
+    // Yêu cầu: Từ 22h - 5h thì lượng khách giảm đi 90% (chỉ còn 10% khách)
+    const h = this.state.timeOfDayHours % 24;
+    const isLateNight = h >= 22.0 || h < 5.0;
+    const nightSpawnMultiplier = isLateNight ? 0.10 : 1.0;
+
     const rushMultiplier = this.state.isRushHour ? 2.6 : 1.0;
     const weatherSpawnMultiplier = (this.state.weather.type === 'rainy' || this.state.weather.type === 'storm' || this.state.weather.type === 'flooded')
       ? 1.35
       : 1.0;
-    const spawnMultiplier = rushMultiplier * weatherSpawnMultiplier;
+    const spawnMultiplier = rushMultiplier * weatherSpawnMultiplier * nightSpawnMultiplier;
 
     for (const station of this.state.stations) {
+      // Nếu ga tạm đóng cửa -> không sinh khách ở ga này!
+      if (station.isClosed) continue;
+
       // Chance per second to spawn a passenger at this station (3x higher if station is Expo Centre!)
       const expoMult = station.isExpoCentre ? 3.2 : 1.0;
       const spawnRate = (0.07 + Math.random() * 0.05) * spawnMultiplier * expoMult;
@@ -629,7 +645,6 @@ export class MetroEngine {
           const candidateShapes = existingShapes.filter(sh => sh !== station.shape);
           if (candidateShapes.length > 0) {
             // Feature 16: Commuter Roundtrips weight modulation based on time of day
-            const h = this.state.timeOfDayHours % 24;
             const isMorning = h >= 6.0 && h <= 11.5;
             const isAfternoon = h >= 16.0 && h <= 20.0;
 
@@ -668,10 +683,17 @@ export class MetroEngine {
             const isMonthlyPassHolder = isStudent ? true : Math.random() < 0.80;
 
             const finalTargetShape = isStudent ? (candidateShapes.includes('circle') ? 'circle' : targetShape) : targetShape;
-            const matchingStations = this.state.stations.filter(s => s.shape === finalTargetShape && s.id !== station.id);
+            // Loại trừ các ga đang tạm đóng cửa khỏi điểm đến của khách!
+            const matchingStations = this.state.stations.filter(s => s.shape === finalTargetShape && s.id !== station.id && !s.isClosed);
             const chosenDestStation = matchingStations.length > 0
               ? matchingStations[Math.floor(Math.random() * matchingStations.length)]
               : undefined;
+
+            // Feature 16: Bãi gửi xe Park & Ride - thu phí gửi xe $1 khi khách bước vào ga
+            if (station.hasParkAndRide) {
+              this.state.money += 1;
+              this.state.stats.parkAndRideRevenueTotal = (this.state.stats.parkAndRideRevenueTotal || 0) + 1;
+            }
 
             const passenger: Passenger = {
               id: `p-${this.passengerIdCounter++}`,
@@ -934,6 +956,9 @@ export class MetroEngine {
       // Tăng 50% (1.5x) tốc độ cho đoàn tàu đã trả khách xong trên đường quay về depot
       const depotRecallSpeedMultiplier = (line.isDepotRecalled && train.passengers.length === 0) ? 1.5 : 1.0;
 
+      // Feature 6: Xe cứu hộ đường ray khẩn cấp tăng +25% tốc độ toàn mạng lưới
+      const railGrinderMultiplier = (this.state.stats.railGrinderBoostUntil && this.state.stats.railGrinderBoostUntil > Date.now()) ? 1.25 : 1.0;
+
       // Realistic physical acceleration upon departure and deceleration upon arrival
       const p = Math.max(0, Math.min(1, train.progress));
       let accelDecelMultiplier = 1.0;
@@ -947,7 +972,7 @@ export class MetroEngine {
       }
 
       // Calculate speed with headway regulation (stops cleanly if headwayMultiplier === 0)
-      let finalSpeed = baseSpeed * 0.90 * typeMultiplier * weatherSpeedMultiplier * depotRecallSpeedMultiplier * accelDecelMultiplier * headwayMultiplier;
+      let finalSpeed = baseSpeed * 0.90 * typeMultiplier * weatherSpeedMultiplier * depotRecallSpeedMultiplier * railGrinderMultiplier * accelDecelMultiplier * headwayMultiplier;
       if (headwayMultiplier === 0) {
         finalSpeed = 0;
       } else {
@@ -1056,6 +1081,12 @@ export class MetroEngine {
       return;
     }
 
+    // Yêu cầu: Ga tạm đóng cửa -> tàu vẫn dừng nhưng không đón/trả khách
+    if (station.isClosed) {
+      this.addFloatingText(station.x, station.y - 28, '⛔ Ga Tạm Đóng - Không đón trả khách', '#EF4444');
+      return;
+    }
+
     let fareEarned = 0;
     let passengersDeliveredHere = 0;
     let monthlyPassDelivered = 0;
@@ -1102,6 +1133,18 @@ export class MetroEngine {
 
           fareEarned += fare;
           this.state.stats.distanceFareRevenueTotal = (this.state.stats.distanceFareRevenueTotal || 0) + fare;
+        }
+
+        // Feature 24: Kiosk Cà Phê & VinMart - hoa hồng +$0.5/khách
+        if (station.hasCoffeeKiosk) {
+          fareEarned += 0.5;
+          this.state.stats.coffeeKioskRevenueTotal = (this.state.stats.coffeeKioskRevenueTotal || 0) + 0.5;
+        }
+
+        // Feature 15: Ga Phức Hợp TOD - phí tiện ích thương mại +$1.0/khách
+        if (station.isTodHub) {
+          fareEarned += 1.0;
+          this.state.stats.todRevenueTotal = (this.state.stats.todRevenueTotal || 0) + 1.0;
         }
 
         // Feature 14: Du khách quốc tế thưởng Tip $10 nếu đi thẳng không đổi tàu
@@ -2395,23 +2438,7 @@ export class MetroEngine {
   }
 
   public upgradeStationSmartIC(stationId: string): boolean {
-    const station = this.state.stations.find(s => s.id === stationId);
-    if (!station || station.hasSmartIC) return false;
-
-    const cost = 1200;
-    if (!this.isUnlimitedMode) {
-      if (this.state.money < cost) {
-        soundEngine.playDisconnect();
-        this.addFloatingText(station.x, station.y - 30, `❌ Cần $${cost.toLocaleString()} để lắp Cổng Soát vé IC Card!`, '#EF4444');
-        return false;
-      }
-      this.state.money -= cost;
-    }
-
-    station.hasSmartIC = true;
-    soundEngine.playConnect();
-    this.addFloatingText(station.x, station.y - 30, `💳 Ga ${station.name}: Cổng Soát vé Thông minh IC Card (-50% chờ)!`, '#10B981');
-    return true;
+    return this.upgradeStationFeature(stationId, 'smartIC');
   }
 
   public buyTransitAdContract(cost = 2000): boolean {
@@ -3342,6 +3369,24 @@ export class MetroEngine {
     return true;
   }
 
+  /**
+   * Hoàn tác Ga Trung Chuyển về lại Ga tiêu chuẩn (KHÔNG HOÀN TIỀN)
+   */
+  public revertStationInterchange(stationId: string): boolean {
+    const station = this.state.stations.find(s => s.id === stationId);
+    if (!station || !station.isInterchange) return false;
+
+    station.isInterchange = false;
+    let baseCap = 6;
+    if (station.isTodHub) baseCap += 8;
+    if (station.hasParkAndRide) baseCap += 10;
+    station.maxCapacity = baseCap;
+
+    soundEngine.playDisconnect();
+    this.addFloatingText(station.x, station.y - 25, `↩️ Hoàn tác Ga ${station.name} về Ga thường (Không hoàn tiền)`, '#F59E0B');
+    return true;
+  }
+
   // Purchases using money
   public buyTrain(): boolean {
     const cost = 400 + this.state.trains.length * 100;
@@ -4018,6 +4063,301 @@ export class MetroEngine {
         }
       }
     }
+  }
+
+  /**
+   * Tính toán doanh thu định kỳ mỗi giờ từ Kiosk Cà phê, Mái Pin Mặt Trời, Ga TOD và Trạm Feeder
+   */
+  private processHourlyStationAmenities(h: number) {
+    let hourlyTotalEarned = 0;
+
+    for (const station of this.state.stations) {
+      if (station.isClosed) continue;
+
+      // Feature 24: Kiosk Cà phê & VinMart (+$25/h)
+      if (station.hasCoffeeKiosk) {
+        this.state.money += 25;
+        this.state.stats.coffeeKioskRevenueTotal = (this.state.stats.coffeeKioskRevenueTotal || 0) + 25;
+        hourlyTotalEarned += 25;
+      }
+
+      // Feature 18: Mái Pin Năng Lượng Mặt Trời (+$40/h ban ngày 6h - 18h)
+      if (station.hasSolarRoof && h >= 6.0 && h <= 18.0) {
+        this.state.money += 40;
+        this.state.stats.solarEnergySavingsTotal = (this.state.stats.solarEnergySavingsTotal || 0) + 40;
+        hourlyTotalEarned += 40;
+      }
+
+      // Feature 15: Ga Phức Hợp TOD (+$100/h)
+      if (station.isTodHub) {
+        this.state.money += 100;
+        this.state.stats.todRevenueTotal = (this.state.stats.todRevenueTotal || 0) + 100;
+        hourlyTotalEarned += 100;
+      }
+
+      // Feature 3: Trạm Xe Ôm Feeder giải tỏa bớt khách sang ga lân cận khi ga đông
+      if (station.hasFeederStation && station.passengers.length >= 6 && station.isOvercrowded) {
+        const nearbyStations = this.state.stations.filter(s =>
+          s.id !== station.id &&
+          !s.isClosed &&
+          !s.isOvercrowded &&
+          s.passengers.length < s.maxCapacity &&
+          distance(station.x, station.y, s.x, s.y) <= 260
+        );
+
+        if (nearbyStations.length > 0) {
+          const targetStation = nearbyStations[0];
+          const paxToTransfer = Math.min(2, station.passengers.length);
+          const transferred = station.passengers.splice(0, paxToTransfer);
+          targetStation.passengers.push(...transferred);
+          this.state.money += paxToTransfer * 3;
+          this.state.stats.feederTripsCount = (this.state.stats.feederTripsCount || 0) + paxToTransfer;
+          this.addFloatingText(station.x, station.y - 25, `🛵 Feeder chuyển ${paxToTransfer} khách ➔ Ga ${targetStation.name} (+$${paxToTransfer * 3})`, '#38BDF8');
+        }
+      }
+    }
+
+    if (hourlyTotalEarned > 0 && Math.random() < 0.25) {
+      this.addFloatingText(740, 480, `📈 Doanh thu tiện ích: +$${hourlyTotalEarned}/giờ`, '#10B981');
+    }
+  }
+
+  /**
+   * Quyên góp từ thiện (cho người chơi thừa tiền)
+   */
+  public donateMoney(amount: number): boolean {
+    if (this.state.money < amount || amount <= 0) return false;
+    this.state.money -= amount;
+    this.state.stats.totalDonated = (this.state.stats.totalDonated || 0) + amount;
+    this.state.stats.citizenSatisfaction = Math.min(100, (this.state.stats.citizenSatisfaction || 95) + Math.min(15, Math.ceil(amount / 20000)));
+    soundEngine.playCash();
+    this.addFloatingText(740, 400, `💖 Đại gia hảo tâm: Quyên góp $${amount.toLocaleString()}!`, '#EC4899');
+    return true;
+  }
+
+  /**
+   * Tạm đóng cửa ga ($1,000 phí di tản) hoặc mở lại ga
+   */
+  public toggleCloseStation(stationId: string): boolean {
+    const station = this.state.stations.find(s => s.id === stationId);
+    if (!station) return false;
+
+    if (!station.isClosed) {
+      if (this.state.money < 1000) {
+        this.addFloatingText(station.x, station.y - 25, '⚠️ Cần $1,000 để đóng cửa và di tản ga!', '#EF4444');
+        return false;
+      }
+      this.state.money -= 1000;
+      station.isClosed = true;
+      station.passengers = [];
+      station.overcrowdedTimer = 0;
+      station.isOvercrowded = false;
+      this.addFloatingText(station.x, station.y - 25, `⛔ Ga ${station.name} Đã Tạm Đóng Cửa (-$1,000)`, '#EF4444');
+      soundEngine.playDisconnect();
+      return true;
+    } else {
+      station.isClosed = false;
+      this.addFloatingText(station.x, station.y - 25, `✅ Ga ${station.name} Đã Mở Cửa Trở Lại!`, '#10B981');
+      soundEngine.playConnect();
+      return true;
+    }
+  }
+
+  /**
+   * Nâng cấp cơ sở hạ tầng & tiện ích nhà ga
+   */
+  public upgradeStationFeature(stationId: string, feature: 'smartIC' | 'coffee' | 'solar' | 'tod' | 'parkAndRide' | 'feeder'): boolean {
+    const station = this.state.stations.find(s => s.id === stationId);
+    if (!station) return false;
+
+    const costs: Record<string, number> = {
+      smartIC: 1200,
+      coffee: 800,
+      solar: 1200,
+      tod: 3500,
+      parkAndRide: 600,
+      feeder: 500
+    };
+    const cost = costs[feature] || 500;
+    if (this.state.money < cost) {
+      this.addFloatingText(station.x, station.y - 25, `⚠️ Không đủ tiền (Cần $${cost.toLocaleString()})!`, '#EF4444');
+      return false;
+    }
+
+    this.state.money -= cost;
+    soundEngine.playCash();
+
+    if (feature === 'smartIC') {
+      station.hasSmartIC = true;
+      this.addFloatingText(station.x, station.y - 25, '💳 Lắp Cổng Soát Vé Smart IC thành công! (-50% dwell time)', '#06B6D4');
+    } else if (feature === 'coffee') {
+      station.hasCoffeeKiosk = true;
+      this.addFloatingText(station.x, station.y - 25, '☕ Mở Kiosk Cà phê & VinMart thành công! (+$25/h)', '#F59E0B');
+    } else if (feature === 'solar') {
+      station.hasSolarRoof = true;
+      this.addFloatingText(station.x, station.y - 25, '☀️ Lắp Mái Pin Mặt Trời thành công! (+$40/h)', '#EAB308');
+    } else if (feature === 'tod') {
+      station.isTodHub = true;
+      station.maxCapacity += 8;
+      this.addFloatingText(station.x, station.y - 25, '🏢 Nâng cấp Ga Phức Hợp TOD! (+8 chỗ & +$100/h)', '#06B6D4');
+    } else if (feature === 'parkAndRide') {
+      station.hasParkAndRide = true;
+      station.maxCapacity += 10;
+      this.addFloatingText(station.x, station.y - 25, '🅿️ Xây Bãi Gửi Xe Park & Ride! (+10 chỗ & +$1/khách)', '#10B981');
+    } else if (feature === 'feeder') {
+      station.hasFeederStation = true;
+      this.addFloatingText(station.x, station.y - 25, '🛵 Thành lập Trạm Xe Ôm Feeder thành công!', '#38BDF8');
+    }
+
+    return true;
+  }
+
+  /**
+   * Nâng cấp hàng loạt toàn bộ nhà ga hiện có theo từng tiện ích hoặc toàn bộ tiện ích
+   */
+  public upgradeAllStationsFeature(feature: 'smartIC' | 'coffee' | 'solar' | 'tod' | 'parkAndRide' | 'feeder' | 'all'): { count: number; totalCost: number; success: boolean } {
+    const costs: Record<'smartIC' | 'coffee' | 'solar' | 'tod' | 'parkAndRide' | 'feeder', number> = {
+      smartIC: 1200,
+      coffee: 800,
+      solar: 1200,
+      tod: 3500,
+      parkAndRide: 600,
+      feeder: 500
+    };
+
+    const targetFeatures: ('smartIC' | 'coffee' | 'solar' | 'tod' | 'parkAndRide' | 'feeder')[] = feature === 'all'
+      ? ['smartIC', 'coffee', 'solar', 'tod', 'parkAndRide', 'feeder']
+      : [feature];
+
+    const tasks: { station: Station; feat: 'smartIC' | 'coffee' | 'solar' | 'tod' | 'parkAndRide' | 'feeder' }[] = [];
+    let totalCost = 0;
+
+    for (const station of this.state.stations) {
+      for (const feat of targetFeatures) {
+        let hasIt = false;
+        if (feat === 'smartIC') hasIt = Boolean(station.hasSmartIC);
+        else if (feat === 'coffee') hasIt = Boolean(station.hasCoffeeKiosk);
+        else if (feat === 'solar') hasIt = Boolean(station.hasSolarRoof);
+        else if (feat === 'tod') hasIt = Boolean(station.isTodHub);
+        else if (feat === 'parkAndRide') hasIt = Boolean(station.hasParkAndRide);
+        else if (feat === 'feeder') hasIt = Boolean(station.hasFeederStation);
+
+        if (!hasIt) {
+          totalCost += costs[feat];
+          tasks.push({ station, feat });
+        }
+      }
+    }
+
+    if (tasks.length === 0) {
+      this.addFloatingText(740, 450, '✅ Tất cả nhà ga đã được trang bị tiện ích này!', '#10B981');
+      return { count: 0, totalCost: 0, success: true };
+    }
+
+    if (this.state.money < totalCost) {
+      soundEngine.playDisconnect();
+      this.addFloatingText(740, 450, `❌ Không đủ tiền! Cần $${totalCost.toLocaleString()} để nâng cấp ${tasks.length} lượt!`, '#EF4444');
+      return { count: 0, totalCost, success: false };
+    }
+
+    this.state.money -= totalCost;
+
+    for (const task of tasks) {
+      const { station, feat } = task;
+      if (feat === 'smartIC') station.hasSmartIC = true;
+      else if (feat === 'coffee') station.hasCoffeeKiosk = true;
+      else if (feat === 'solar') station.hasSolarRoof = true;
+      else if (feat === 'tod') {
+        station.isTodHub = true;
+        station.maxCapacity += 8;
+      }
+      else if (feat === 'parkAndRide') {
+        station.hasParkAndRide = true;
+        station.maxCapacity += 10;
+      }
+      else if (feat === 'feeder') station.hasFeederStation = true;
+    }
+
+    soundEngine.playFanfare();
+    const featNames: Record<string, string> = {
+      smartIC: 'Cổng Soát Vé Smart IC',
+      coffee: 'Kiosk Cà Phê',
+      solar: 'Mái Pin Mặt Trời',
+      tod: 'Phức Hợp TOD',
+      parkAndRide: 'Bãi Xe Park & Ride',
+      feeder: 'Trạm Xe Ôm Feeder',
+      all: 'Toàn Bộ Tiện Ích Đô Thị'
+    };
+    const label = featNames[feature] || 'Tiện Ích';
+    this.addFloatingText(740, 450, `🎉 Đã lắp đặt ${label} cho toàn bộ nhà ga (-$${totalCost.toLocaleString()})!`, '#10B981');
+    return { count: tasks.length, totalCost, success: true };
+  }
+
+  /**
+   * Feature 5: Điều tiết khoảng cách giãn cách các đoàn tàu trên tuyến (Headway Anti-Bunching)
+   */
+  public rebalanceLineHeadway(lineId: string): boolean {
+    const line = this.state.lines.find(l => l.id === lineId);
+    if (!line || line.stationIds.length < 2 || !line.trains || line.trains.length <= 1) {
+      return false;
+    }
+
+    const n = line.trains.length;
+    const numSegments = line.isLoop ? line.stationIds.length : (line.stationIds.length - 1);
+
+    line.trains.forEach((train, i) => {
+      if (line.isLoop) {
+        const targetStationIdx = Math.floor((i / n) * line.stationIds.length);
+        train.segmentIndex = targetStationIdx;
+        train.progress = 0;
+        train.direction = 1;
+      } else {
+        const phase = (i / n) * 2;
+        if (phase < 1.0) {
+          train.direction = 1;
+          const targetIdx = Math.min(numSegments - 1, Math.floor(phase * numSegments));
+          train.segmentIndex = targetIdx;
+          train.progress = (phase * numSegments) - targetIdx;
+        } else {
+          train.direction = -1;
+          const revPhase = phase - 1.0;
+          const targetIdx = Math.max(0, numSegments - 1 - Math.floor(revPhase * numSegments));
+          train.segmentIndex = targetIdx;
+          train.progress = 1 - ((revPhase * numSegments) - Math.floor(revPhase * numSegments));
+        }
+      }
+    });
+
+    soundEngine.playConnect();
+    const st0 = this.state.stations.find(s => s.id === line.stationIds[0]);
+    if (st0) {
+      this.addFloatingText(st0.x, st0.y - 30, `⚡ ${line.name}: Đã điều tiết giãn cách đều!`, line.color);
+    }
+    return true;
+  }
+
+  /**
+   * Feature 6: Xe cứu hộ bảo trì đường ray khẩn cấp ($2,000)
+   * Tăng +25% tốc độ toàn bộ đoàn tàu trong 24h & xóa sạch mọi sự cố đường ray/ngập lụt
+   */
+  public buyRailGrinderService(): boolean {
+    const cost = 2000;
+    if (this.state.money < cost) {
+      return false;
+    }
+    this.state.money -= cost;
+    this.state.stats.railGrinderBoostUntil = Date.now() + 24 * 60 * 1000;
+
+    if (this.state.activeIncident?.type === 'train_breakdown' || this.state.activeIncident?.type === 'flooded') {
+      this.state.activeIncident = null;
+    }
+    for (const station of this.state.stations) {
+      station.isFlooded = false;
+    }
+
+    soundEngine.playInspectorWhistle();
+    this.addFloatingText(740, 200, '🛠️ Xe Cứu Hộ Hoàn Tất Bảo Trì! Ray sáng bóng +25% tốc độ!', '#F59E0B');
+    return true;
   }
 
   public static saveToStorage(engine: MetroEngine) {

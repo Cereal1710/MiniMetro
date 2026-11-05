@@ -20,6 +20,8 @@ interface ShopModalProps {
   hasTransitAdContract?: boolean;
   transitAdDaysRemaining?: number;
   onBuyTransitAdContract?: () => void;
+  onBuyRailGrinder?: () => void;
+  railGrinderBoostUntil?: number;
 }
 
 export const ShopModal: React.FC<ShopModalProps> = ({
@@ -38,7 +40,9 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   onBuyTunnel,
   hasTransitAdContract,
   transitAdDaysRemaining,
-  onBuyTransitAdContract
+  onBuyTransitAdContract,
+  onBuyRailGrinder,
+  railGrinderBoostUntil
 }) => {
   const isDark = theme === 'dark';
 
@@ -137,6 +141,21 @@ export const ShopModal: React.FC<ShopModalProps> = ({
         : (lang === 'vi' ? 'Chưa kích hoạt' : 'Inactive'),
       countLabelVi: hasTransitAdContract ? 'Thời hạn' : 'Trạng thái',
       countLabelEn: hasTransitAdContract ? 'Duration' : 'Status'
+    },
+    {
+      titleVi: 'Xe Cứu Hộ Bảo Trì Đường Ray (24h)',
+      titleEn: 'Emergency Rail Grinder Service (24h)',
+      descVi: 'Tăng +25% tốc độ toàn bộ đoàn tàu trong 24h, đồng thời xóa ngay lập tức mọi sự cố ngập lụt và kẹt ray trên toàn thành phố.',
+      descEn: 'Boost +25% train speeds for 24h and instantly clear all flooded and stalled rail track incidents city-wide.',
+      cost: 2000,
+      icon: <span className="text-xl leading-none">🛠️</span>,
+      canBuy: money >= 2000 && !!onBuyRailGrinder,
+      action: onBuyRailGrinder || (() => {}),
+      currentCount: (railGrinderBoostUntil && railGrinderBoostUntil > Date.now())
+        ? (lang === 'vi' ? 'Đang kích hoạt (+25%)' : 'Active (+25%)')
+        : (lang === 'vi' ? 'Sẵn sàng điều động' : 'Ready to deploy'),
+      countLabelVi: 'Trạng thái',
+      countLabelEn: 'Status'
     }
   ];
 

@@ -298,6 +298,10 @@ class SoundEngine {
     }
   }
 
+  public playCash() {
+    this.playCashReward();
+  }
+
   /**
    * Upgrade unlocked or celebration fanfare
    */

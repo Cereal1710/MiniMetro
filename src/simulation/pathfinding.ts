@@ -14,6 +14,7 @@ export function isMatchingDestination(
   targetShape: StationShape,
   targetStationId?: string
 ): boolean {
+  if (station.isClosed) return false;
   if (targetStationId && station.id === targetStationId) return true;
   return station.shape === targetShape;
 }

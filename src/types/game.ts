@@ -53,6 +53,12 @@ export interface Station {
   hasSmartIC?: boolean; // Feature 24: Cổng soát vé thông minh NFC/IC Card (-50% dwell time)
   isExpoCentre?: boolean; // Feature 28: Trung tâm triển lãm quốc tế Expo
   expoRemainingDays?: number; // Thời gian còn lại của tuần lễ Expo
+  isClosed?: boolean; // Tạm đóng cửa ga ($1,000 phí đóng/di tản)
+  hasCoffeeKiosk?: boolean; // Tính năng 24: Kiosk cà phê & cửa hàng tiện lợi
+  hasSolarRoof?: boolean; // Tính năng 18: Mái pin mặt trời năng lượng xanh
+  isTodHub?: boolean; // Tính năng 15: Ga phức hợp thương mại TOD
+  hasParkAndRide?: boolean; // Tính năng 16: Bãi gửi xe Park & Ride
+  hasFeederStation?: boolean; // Tính năng 3: Trạm xe ôm công nghệ & mini feeder
 }
 
 export interface BankLoan {
@@ -362,6 +368,13 @@ export interface GameStats {
   totalAdRevenue?: number; // Tổng doanh thu từ quảng cáo thân tàu
   totalTouristTips?: number; // Feature 14: Tổng tiền tip từ du khách ($10/lượt)
   expoEventsCompleted?: number; // Feature 28: Số tuần lễ Expo hoàn thành xuất sắc
+  totalDonated?: number; // Quyên góp từ thiện
+  coffeeKioskRevenueTotal?: number; // Doanh thu kiosk cà phê
+  solarEnergySavingsTotal?: number; // Tiết kiệm/doanh thu điện mặt trời
+  todRevenueTotal?: number; // Doanh thu phức hợp thương mại TOD
+  parkAndRideRevenueTotal?: number; // Doanh thu bãi gửi xe Park & Ride
+  feederTripsCount?: number; // Số chuyến xe ôm công nghệ feeder
+  railGrinderBoostUntil?: number; // Thời hạn tăng tốc xe cứu hộ đường ray
 }
 
 export type WeatherType = 'sunny' | 'rainy' | 'storm' | 'flooded';

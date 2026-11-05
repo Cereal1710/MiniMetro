@@ -11,10 +11,16 @@ interface StationDetailModalProps {
   lang: 'vi' | 'en';
   onClose: () => void;
   onUpgradeToInterchange: (stationId: string) => void;
+  onRevertInterchange?: (stationId: string) => void;
+  onRequestRevertInterchange?: (stationId: string, stationName: string) => void;
   onRemoveStationFromLine?: (lineId: string, stationId: string) => void;
   onChangeShape?: (stationId: string, shape: StationShape) => void;
   onDeleteStation?: (stationId: string) => void;
   onRequestDeleteStation?: (stationId: string, stationName: string) => void;
+  onToggleCloseStation?: (stationId: string) => void;
+  onUpgradeStationFeature?: (stationId: string, feature: 'smartIC' | 'coffee' | 'solar' | 'tod' | 'parkAndRide' | 'feeder') => void;
+  onOpenMassUpgradeModal?: () => void;
+  userMoney?: number;
 }
 
 const SHAPE_NAMES: Record<StationShape, { vi: string; en: string }> = {
@@ -46,10 +52,16 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
   lang,
   onClose,
   onUpgradeToInterchange,
+  onRevertInterchange,
+  onRequestRevertInterchange,
   onRemoveStationFromLine,
   onChangeShape,
   onDeleteStation,
-  onRequestDeleteStation
+  onRequestDeleteStation,
+  onToggleCloseStation,
+  onUpgradeStationFeature,
+  onOpenMassUpgradeModal,
+  userMoney = 0
 }) => {
   if (!station) return null;
   const isDark = theme === 'dark';
@@ -180,6 +192,52 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
             )}
           </div>
         </div>
+
+        {/* Closed Station Alert & Toggle */}
+        {station.isClosed ? (
+          <div className="p-3.5 rounded-xl border border-red-500/40 bg-red-500/15 text-red-300 text-xs mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-bold flex items-center gap-1.5 text-red-400">
+                <span>⛔</span>
+                <span>{lang === 'vi' ? 'GA ĐANG TẠM ĐÓNG CỬA' : 'STATION TEMPORARILY CLOSED'}</span>
+              </span>
+              <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-red-500/30 text-white font-bold">
+                {lang === 'vi' ? 'Đã di tản khách' : 'Evacuated'}
+              </span>
+            </div>
+            <p className="text-[11px] opacity-80 mb-2.5">
+              {lang === 'vi'
+                ? 'Tàu vẫn dừng theo tín hiệu nhưng không đón/trả khách. Hành khách không tới ga này.'
+                : 'Trains still stop at signals but do not board or alight. Passengers will not travel here.'}
+            </p>
+            {onToggleCloseStation && (
+              <button
+                onClick={() => onToggleCloseStation(station.id)}
+                className="w-full py-2 px-3 rounded-lg font-bold text-xs bg-emerald-500 hover:bg-emerald-400 text-neutral-900 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-98"
+              >
+                <span>✅</span>
+                <span>{lang === 'vi' ? 'Mở lại ga hoạt động (Miễn phí)' : 'Reopen Station (Free)'}</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          onToggleCloseStation && (
+            <div className="mb-4">
+              <button
+                onClick={() => onToggleCloseStation(station.id)}
+                className="w-full py-2 px-3 rounded-xl border border-red-500/30 hover:bg-red-500/10 text-red-400 text-xs font-semibold flex items-center justify-between transition cursor-pointer active:scale-98"
+              >
+                <span className="flex items-center gap-1.5 font-bold">
+                  <span>⛔</span>
+                  <span>{lang === 'vi' ? 'Tạm đóng cửa ga' : 'Temporarily Close Station'}</span>
+                </span>
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-bold">
+                  {lang === 'vi' ? 'Phí $1,000 (Di tản khách)' : 'Fee $1,000 (Evacuate)'}
+                </span>
+              </button>
+            </div>
+          )
+        )}
 
         {/* Capacity & Overcrowd Status */}
         <div className={`p-4 rounded-xl border mb-4 ${
@@ -326,7 +384,7 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
           )}
         </div>
 
-        {/* Upgrade to Interchange Hub Button */}
+        {/* Upgrade / Revert Interchange Hub */}
         {!station.isInterchange ? (
           <div className="space-y-2">
             <button
@@ -340,9 +398,244 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
             </button>
           </div>
         ) : (
-          <div className="w-full py-2.5 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/30 text-xs font-bold text-center flex items-center justify-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>{lang === 'vi' ? 'Đã là Ga Trung Chuyển tối ưu (Sức chứa 14 khách)' : 'Optimal Interchange Hub Active (14 Capacity)'}</span>
+          <div className="space-y-2">
+            <div className="w-full py-2.5 px-3 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/30 text-xs font-bold flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>{lang === 'vi' ? 'Đã là Ga Trung Chuyển tối ưu (Sức chứa 14 khách)' : 'Optimal Interchange Hub Active (14 Capacity)'}</span>
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-[10px] font-mono">14 PAX</span>
+            </div>
+
+            {/* Revert Interchange Hub Button */}
+            {(onRevertInterchange || onRequestRevertInterchange) && (
+              <button
+                onClick={() => {
+                  if (onRequestRevertInterchange) {
+                    onRequestRevertInterchange(station.id, station.name);
+                  } else if (onRevertInterchange) {
+                    onRevertInterchange(station.id);
+                  }
+                }}
+                className="w-full py-2 px-3 rounded-xl border border-amber-500/40 hover:bg-amber-500/15 text-amber-400 text-xs font-bold flex items-center justify-between transition cursor-pointer active:scale-98"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span>↩️</span>
+                  <span>{lang === 'vi' ? 'Hoàn tác về Ga thường' : 'Revert to Standard Station'}</span>
+                </span>
+                <span className="text-[10px] font-mono opacity-90 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
+                  {lang === 'vi' ? '⚠️ Không hoàn tiền' : '⚠️ No Refund'}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Station Upgrades & Amenities */}
+        {onUpgradeStationFeature && (
+          <div className="mt-4 pt-4 border-t border-neutral-700/40">
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="text-xs font-semibold uppercase opacity-60">
+                {lang === 'vi' ? 'Tiện ích & Cơ sở hạ tầng nhà ga' : 'Station Amenities & Upgrades'}
+              </h3>
+              {onOpenMassUpgradeModal && (
+                <button
+                  type="button"
+                  onClick={onOpenMassUpgradeModal}
+                  className="px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition"
+                >
+                  <span>🏢</span>
+                  <span>{lang === 'vi' ? 'Nâng cấp toàn bộ ga' : 'Upgrade all'}</span>
+                </button>
+              )}
+            </div>
+            <div className="space-y-2">
+              {/* Feature: Cổng Soát Vé Thẻ Thông Minh Smart IC */}
+              {station.hasSmartIC ? (
+                <div className="p-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">💳</span>
+                    <div>
+                      <span className="font-bold text-cyan-400">{lang === 'vi' ? 'Cổng Soát Vé Smart IC Card' : 'Contactless Smart IC Gate'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? 'Đã lắp: Giảm 50% thời gian đón trả khách (Dwell Time)' : 'Installed: Cuts dwell delay by 50%'}</p>
+                    </div>
+                  </div>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+              ) : (
+                <button
+                  disabled={userMoney < 1200}
+                  onClick={() => onUpgradeStationFeature(station.id, 'smartIC')}
+                  className={`w-full p-2.5 rounded-xl border text-xs flex items-center justify-between transition cursor-pointer active:scale-98 ${
+                    userMoney >= 1200 ? (isDark ? 'bg-neutral-800/80 hover:bg-neutral-700/80 border-neutral-700 text-white' : 'bg-neutral-50 hover:bg-neutral-100 border-neutral-200 text-neutral-800') : 'opacity-40 cursor-not-allowed border-neutral-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-left">
+                    <span className="text-base">💳</span>
+                    <div>
+                      <span className="font-bold">{lang === 'vi' ? 'Lắp Cổng Soát Vé Smart IC Card' : 'Install Smart IC Gate'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? 'Giảm 50% thời gian đón trả khách toàn ga' : 'Reduces passenger boarding/alighting dwell time by 50%'}</p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-cyan-400 bg-cyan-500/15 px-2 py-0.5 rounded text-[11px]">$1,200</span>
+                </button>
+              )}
+
+              {/* Feature 24: Kiosk Cà Phê & Cửa Hàng Tiện Lợi */}
+              {station.hasCoffeeKiosk ? (
+                <div className="p-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">☕</span>
+                    <div>
+                      <span className="font-bold text-amber-400">{lang === 'vi' ? 'Kiosk Cà Phê & VinMart' : 'Coffee Kiosk & Mini Mart'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? 'Đang sinh lời: +$25/h & +$0.5/khách' : 'Earning: +$25/h & +$0.5/passenger'}</p>
+                    </div>
+                  </div>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+              ) : (
+                <button
+                  disabled={userMoney < 800}
+                  onClick={() => onUpgradeStationFeature(station.id, 'coffee')}
+                  className={`w-full p-2.5 rounded-xl border text-xs flex items-center justify-between transition cursor-pointer active:scale-98 ${
+                    userMoney >= 800 ? (isDark ? 'bg-neutral-800/80 hover:bg-neutral-700/80 border-neutral-700 text-white' : 'bg-neutral-50 hover:bg-neutral-100 border-neutral-200 text-neutral-800') : 'opacity-40 cursor-not-allowed border-neutral-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-left">
+                    <span className="text-base">☕</span>
+                    <div>
+                      <span className="font-bold">{lang === 'vi' ? 'Mở Kiosk Cà Phê & VinMart' : 'Open Coffee & Mini Mart Kiosk'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? 'Doanh thu +$25/h & +$0.5/khách' : 'Revenue +$25/h & +$0.5/pax'}</p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded text-[11px]">$800</span>
+                </button>
+              )}
+
+              {/* Feature 18: Mái Pin Năng Lượng Mặt Trời */}
+              {station.hasSolarRoof ? (
+                <div className="p-2.5 rounded-xl border border-yellow-500/30 bg-yellow-500/10 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">☀️</span>
+                    <div>
+                      <span className="font-bold text-yellow-400">{lang === 'vi' ? 'Mái Pin Năng Lượng Mặt Trời' : 'Solar Roof Panels'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? 'Năng lượng xanh: +$40/h ban ngày' : 'Clean energy: +$40/h daytime'}</p>
+                    </div>
+                  </div>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+              ) : (
+                <button
+                  disabled={userMoney < 1200}
+                  onClick={() => onUpgradeStationFeature(station.id, 'solar')}
+                  className={`w-full p-2.5 rounded-xl border text-xs flex items-center justify-between transition cursor-pointer active:scale-98 ${
+                    userMoney >= 1200 ? (isDark ? 'bg-neutral-800/80 hover:bg-neutral-700/80 border-neutral-700 text-white' : 'bg-neutral-50 hover:bg-neutral-100 border-neutral-200 text-neutral-800') : 'opacity-40 cursor-not-allowed border-neutral-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-left">
+                    <span className="text-base">☀️</span>
+                    <div>
+                      <span className="font-bold">{lang === 'vi' ? 'Lắp Mái Pin Mặt Trời' : 'Install Solar Roof Panels'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? 'Tiết kiệm & sinh lời +$40/h ban ngày' : 'Save & earn +$40/h daytime'}</p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-yellow-400 bg-yellow-500/15 px-2 py-0.5 rounded text-[11px]">$1,200</span>
+                </button>
+              )}
+
+              {/* Feature 15: Phức Hợp Thương Mại & Căn Hộ TOD */}
+              {station.isTodHub ? (
+                <div className="p-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🏢</span>
+                    <div>
+                      <span className="font-bold text-cyan-400">{lang === 'vi' ? 'Ga Phức Hợp TOD Thương Mại' : 'TOD Commercial Hub'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? '+8 Sức chứa & Doanh thu +$100/h' : '+8 Capacity & +$100/h passive'}</p>
+                    </div>
+                  </div>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+              ) : (
+                <button
+                  disabled={userMoney < 3500}
+                  onClick={() => onUpgradeStationFeature(station.id, 'tod')}
+                  className={`w-full p-2.5 rounded-xl border text-xs flex items-center justify-between transition cursor-pointer active:scale-98 ${
+                    userMoney >= 3500 ? (isDark ? 'bg-neutral-800/80 hover:bg-neutral-700/80 border-neutral-700 text-white' : 'bg-neutral-50 hover:bg-neutral-100 border-neutral-200 text-neutral-800') : 'opacity-40 cursor-not-allowed border-neutral-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-left">
+                    <span className="text-base">🏢</span>
+                    <div>
+                      <span className="font-bold">{lang === 'vi' ? 'Phức Hợp Thương Mại TOD' : 'Upgrade TOD Commercial Hub'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? '+8 Sức chứa & Doanh thu +$100/h' : '+8 Capacity & +$100/h revenue'}</p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-cyan-400 bg-cyan-500/15 px-2 py-0.5 rounded text-[11px]">$3,500</span>
+                </button>
+              )}
+
+              {/* Feature 16: Bãi Gửi Xe Park & Ride (P+R) */}
+              {station.hasParkAndRide ? (
+                <div className="p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🅿️</span>
+                    <div>
+                      <span className="font-bold text-emerald-400">{lang === 'vi' ? 'Bãi Gửi Xe Park & Ride' : 'Park & Ride Facility'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? '+10 Sức chứa & Thu phí gửi xe $1/khách' : '+10 Capacity & +$1 fee/passenger'}</p>
+                    </div>
+                  </div>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+              ) : (
+                <button
+                  disabled={userMoney < 600}
+                  onClick={() => onUpgradeStationFeature(station.id, 'parkAndRide')}
+                  className={`w-full p-2.5 rounded-xl border text-xs flex items-center justify-between transition cursor-pointer active:scale-98 ${
+                    userMoney >= 600 ? (isDark ? 'bg-neutral-800/80 hover:bg-neutral-700/80 border-neutral-700 text-white' : 'bg-neutral-50 hover:bg-neutral-100 border-neutral-200 text-neutral-800') : 'opacity-40 cursor-not-allowed border-neutral-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-left">
+                    <span className="text-base">🅿️</span>
+                    <div>
+                      <span className="font-bold">{lang === 'vi' ? 'Xây Bãi Gửi Xe Park & Ride' : 'Build Park & Ride Facility'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? '+10 Sức chứa ga & Phí +$1/khách' : '+10 Capacity & +$1/passenger'}</p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded text-[11px]">$600</span>
+                </button>
+              )}
+
+              {/* Feature 3: Trạm Xe Ôm Công Nghệ & Mini Feeder */}
+              {station.hasFeederStation ? (
+                <div className="p-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🛵</span>
+                    <div>
+                      <span className="font-bold text-sky-400">{lang === 'vi' ? 'Trạm Xe Ôm Feeder' : 'Feeder Transit Hub'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? 'Tự động trung chuyển khách sang ga gần khi quá tải (+$3/khách)' : 'Auto-transfer pax when crowded (+$3/pax)'}</p>
+                    </div>
+                  </div>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+              ) : (
+                <button
+                  disabled={userMoney < 500}
+                  onClick={() => onUpgradeStationFeature(station.id, 'feeder')}
+                  className={`w-full p-2.5 rounded-xl border text-xs flex items-center justify-between transition cursor-pointer active:scale-98 ${
+                    userMoney >= 500 ? (isDark ? 'bg-neutral-800/80 hover:bg-neutral-700/80 border-neutral-700 text-white' : 'bg-neutral-50 hover:bg-neutral-100 border-neutral-200 text-neutral-800') : 'opacity-40 cursor-not-allowed border-neutral-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-left">
+                    <span className="text-base">🛵</span>
+                    <div>
+                      <span className="font-bold">{lang === 'vi' ? 'Mở Trạm Xe Ôm Feeder' : 'Open Feeder Transit Hub'}</span>
+                      <p className="text-[10px] text-neutral-400">{lang === 'vi' ? 'Tự động giải tỏa khách sang ga lân cận (+$3/khách)' : 'Relieve crowd to nearby station (+$3/pax)'}</p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-sky-400 bg-sky-500/15 px-2 py-0.5 rounded text-[11px]">$500</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 

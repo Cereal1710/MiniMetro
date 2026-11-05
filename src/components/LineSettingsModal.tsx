@@ -29,7 +29,6 @@ interface LineSettingsModalProps {
   onSave: (lineId: string, depotStationId: string, dispatchIntervalSeconds: number) => void;
   onRenameLine?: (lineId: string, newName: string) => void;
   onToggleCBTC?: (lineId: string) => void;
-  onUpgradeStationSmartIC?: (stationId: string) => void;
 }
 
 const SHORT_DAYS_VI = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -44,8 +43,7 @@ export const LineSettingsModal: React.FC<LineSettingsModalProps> = ({
   onClose,
   onSave,
   onRenameLine,
-  onToggleCBTC,
-  onUpgradeStationSmartIC
+  onToggleCBTC
 }) => {
   const isDark = theme === 'dark';
   const stationMap = new Map<string, Station>(stations.map(s => [s.id, s]));
@@ -357,24 +355,14 @@ export const LineSettingsModal: React.FC<LineSettingsModalProps> = ({
                             )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {onUpgradeStationSmartIC && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onUpgradeStationSmartIC(sId);
-                                }}
-                                disabled={station?.hasSmartIC}
-                                title={station?.hasSmartIC ? (lang === 'vi' ? 'Đã lắp thẻ thông minh' : 'Smart IC Installed') : (lang === 'vi' ? 'Nâng cấp cửa thẻ thông minh: Giảm 50% thời gian đón trả khách' : 'Upgrade Contactless Smart IC gate: Cuts dwell time by 50%')}
-                                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition ${
-                                  station?.hasSmartIC
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 cursor-default'
-                                    : 'bg-slate-700/80 hover:bg-emerald-600 text-slate-200 hover:text-white cursor-pointer'
-                                }`}
+                            {station?.hasSmartIC && (
+                              <span
+                                title={lang === 'vi' ? 'Đã lắp Cổng Smart IC' : 'Smart IC Gate Installed'}
+                                className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1"
                               >
                                 <span>💳</span>
-                                <span>{station?.hasSmartIC ? 'IC ✓' : (lang === 'vi' ? 'Lắp IC ($1.2k)' : 'Install IC ($1.2k)')}</span>
-                              </button>
+                                <span>IC</span>
+                              </span>
                             )}
                             {isDepot && (
                               <span className="flex items-center gap-1 text-[11px] font-bold text-amber-400 shrink-0">

@@ -21,6 +21,8 @@ import { CityManagerModal } from './components/CityManagerModal';
 import { UrbanBankModal } from './components/UrbanBankModal';
 import { DailyChallengeModal } from './components/DailyChallengeModal';
 import { MiniMetroDock } from './components/MiniMetroDock';
+import { DonationModal } from './components/DonationModal';
+import { MassStationUpgradeModal } from './components/MassStationUpgradeModal';
 import { ZoomIn, ZoomOut, Maximize2, Move } from 'lucide-react';
 
 import { CITY_MAPS, LINE_PALETTE } from './data/maps';
@@ -262,6 +264,8 @@ export default function App() {
   const [inspectingStation, setInspectingStation] = useState<Station | null>(null);
   const [isWeeklyModalOpen, setIsWeeklyModalOpen] = useState(false);
   const [isShopModalOpen, setIsShopModalOpen] = useState(false);
+  const [isDonationModalOpen, setIsDonationModalOpen] = useState(false);
+  const [isMassUpgradeModalOpen, setIsMassUpgradeModalOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [isStartMenuOpen, setIsStartMenuOpen] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -1700,6 +1704,20 @@ export default function App() {
     }
   }, [syncSnapshot]);
 
+  const handleUpgradeAllStations = useCallback((feature: 'smartIC' | 'coffee' | 'solar' | 'tod' | 'parkAndRide' | 'feeder' | 'all') => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const res = engine.upgradeAllStationsFeature(feature);
+    if (res.success) {
+      syncSnapshot();
+      MetroEngine.saveToStorage(engine);
+      if (inspectingStation) {
+        const updated = engine.state.stations.find(s => s.id === inspectingStation.id);
+        if (updated) setInspectingStation({ ...updated });
+      }
+    }
+  }, [inspectingStation, syncSnapshot]);
+
   const handleBuyTransitAdContract = useCallback(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -1817,6 +1835,32 @@ export default function App() {
     });
   }, [lang, syncSnapshot]);
 
+  // Request Revert Interchange Hub with Warning Confirmation (No Refund)
+  const handleRequestRevertInterchange = useCallback((stationId: string, stationName?: string) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const displayName = stationName || engine.state.stations.find(s => s.id === stationId)?.name || '';
+
+    setConfirmDialog({
+      isOpen: true,
+      title: lang === 'vi' ? '⚠️ Xác nhận Hoàn tác Ga Trung Chuyển' : '⚠️ Confirm Revert Interchange Hub',
+      message: lang === 'vi'
+        ? `CẢNH BÁO QUAN TRỌNG:\n\nBạn có chắc chắn muốn hoàn tác Ga "${displayName}" từ Ga Trung Chuyển về lại Ga thường không?\n\n• Sức chứa tối đa của ga sẽ giảm từ 14 xuống 6 khách.\n• LƯU Ý: Thao tác này sẽ KHÔNG ĐƯỢC HOÀN LẠI $350 (hoặc token) chi phí nâng cấp đã trả!`
+        : `IMPORTANT WARNING:\n\nAre you sure you want to revert Station "${displayName}" from an Interchange Hub back to a standard station?\n\n• Station maximum capacity will decrease from 14 to 6 passengers.\n• NOTE: This action will NOT REFUND the $350 upgrade fee or token!`,
+      confirmLabel: lang === 'vi' ? 'Xác nhận Hoàn tác (Không hoàn tiền)' : 'Confirm Revert (No Refund)',
+      cancelLabel: lang === 'vi' ? 'Hủy bỏ' : 'Cancel',
+      confirmVariant: 'warning',
+      onConfirm: () => {
+        engine.revertStationInterchange(stationId);
+        const updated = engine.state.stations.find(s => s.id === stationId);
+        if (updated) setInspectingStation({ ...updated });
+        syncSnapshot();
+        MetroEngine.saveToStorage(engine);
+        setConfirmDialog(null);
+      }
+    });
+  }, [lang, syncSnapshot]);
+
   const engine = engineRef.current;
   const state = uiSnapshot || engine?.state;
 
@@ -1883,6 +1927,8 @@ export default function App() {
           onDismissIncident={handleDismissIncident}
           citizenSatisfaction={state.stats.citizenSatisfaction}
           activeSurgeEvent={state.activeSurgeEvent}
+          onOpenDonation={() => setIsDonationModalOpen(true)}
+          onOpenMassUpgradeModal={() => setIsMassUpgradeModalOpen(true)}
           onSelectCity={(cId) => {
             if (engineRef.current) {
               MetroEngine.saveToStorage(engineRef.current);
@@ -1946,6 +1992,15 @@ export default function App() {
             onOpenLineSettings={(line) => setEditingSettingsLine(line)}
             onToggleLineDepot={handleToggleLineDepot}
             onRenameLine={handleRenameLine}
+            onRebalanceHeadway={(lId) => {
+              engine?.rebalanceLineHeadway(lId);
+              syncSnapshot();
+            }}
+            onBuyRailGrinder={() => {
+              engine?.buyRailGrinderService();
+              syncSnapshot();
+            }}
+            railGrinderBoostUntil={state.stats.railGrinderBoostUntil}
           />
         )}
 
@@ -2280,6 +2335,21 @@ export default function App() {
             handleRequestDeleteStation(stationId, stationName);
             setInspectingStation(null);
           }}
+          onRequestRevertInterchange={handleRequestRevertInterchange}
+          onToggleCloseStation={(stationId) => {
+            engine?.toggleCloseStation(stationId);
+            const updated = engine?.state.stations.find(s => s.id === stationId);
+            if (updated) setInspectingStation({ ...updated });
+            syncSnapshot();
+          }}
+          onUpgradeStationFeature={(stationId, feature) => {
+            engine?.upgradeStationFeature(stationId, feature);
+            const updated = engine?.state.stations.find(s => s.id === stationId);
+            if (updated) setInspectingStation({ ...updated });
+            syncSnapshot();
+          }}
+          onOpenMassUpgradeModal={() => setIsMassUpgradeModalOpen(true)}
+          userMoney={state?.money || 0}
         />
       )}
 
@@ -2356,6 +2426,44 @@ export default function App() {
           hasTransitAdContract={state.stats?.hasTransitAdContract}
           transitAdDaysRemaining={state.stats?.transitAdDaysRemaining}
           onBuyTransitAdContract={handleBuyTransitAdContract}
+          onBuyRailGrinder={() => {
+            engine?.buyRailGrinderService();
+            syncSnapshot();
+            if (engine) MetroEngine.saveToStorage(engine);
+          }}
+          railGrinderBoostUntil={state.stats?.railGrinderBoostUntil}
+        />
+      )}
+
+      {/* Charity Donation Modal */}
+      {isDonationModalOpen && state && (
+        <DonationModal
+          isOpen={isDonationModalOpen}
+          money={state.money}
+          totalDonated={state.stats.totalDonated || 0}
+          theme={theme}
+          lang={lang}
+          onClose={() => setIsDonationModalOpen(false)}
+          onDonate={(amount) => {
+            if (engine) {
+              engine.donateMoney(amount);
+              syncSnapshot();
+              MetroEngine.saveToStorage(engine);
+            }
+          }}
+        />
+      )}
+
+      {/* Mass Station Network Upgrade Modal */}
+      {isMassUpgradeModalOpen && state && (
+        <MassStationUpgradeModal
+          isOpen={isMassUpgradeModalOpen}
+          stations={state.stations}
+          money={state.money}
+          theme={theme}
+          lang={lang}
+          onClose={() => setIsMassUpgradeModalOpen(false)}
+          onUpgradeAll={handleUpgradeAllStations}
         />
       )}
 
