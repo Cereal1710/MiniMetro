@@ -1,9 +1,8 @@
 // =========================================================================
-// MINI METRO - LOCAL-FIRST USER & GAME STORAGE SERVICE
+// MINI METRO - REAL SERVER STORAGE CLIENT (NODE.JS SERVER BACKEND)
 // =========================================================================
-// Thay thế hoàn toàn Firebase: Lưu trữ tài khoản và tiến trình màn chơi
-// trực tiếp trên trình duyệt (LocalStorage). Không lỗi mạng, không cần API Key,
-// hoạt động 100% mượt mà và bền bỉ.
+// Toàn bộ dữ liệu người dùng và file save được gửi qua REST API
+// và lưu trữ an toàn trên Ổ đĩa của SERVER (server-storage/).
 
 export interface UserProfile {
   uid: string;
@@ -23,41 +22,9 @@ export interface CloudSaveData {
   updatedAt: string;
 }
 
-export interface UserAccountRecord {
-  uid: string;
-  username: string;
-  passwordHash: string; // Base64 encoded or salted password string
-  email?: string;
-  createdAt: string;
-  lastLoginAt: string;
-}
-
-// Storage Keys
-const STORAGE_USERS_KEY = 'mini_metro_users_store_v1';
 const STORAGE_ACTIVE_USER_KEY = 'metro_user_profile';
-const STORAGE_CITY_SAVE_PREFIX = 'metro_city_save_';
 
-// Helper: Lấy danh sách toàn bộ người dùng đã đăng ký trên máy
-function getStoredUsersMap(): Record<string, UserAccountRecord> {
-  try {
-    const raw = localStorage.getItem(STORAGE_USERS_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (err) {
-    console.warn('Lỗi đọc database người dùng:', err);
-  }
-  return {};
-}
-
-// Helper: Lưu danh sách người dùng vào LocalStorage
-function persistUsersMap(users: Record<string, UserAccountRecord>) {
-  try {
-    localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(users));
-  } catch (err) {
-    console.error('Lỗi ghi database người dùng:', err);
-  }
-}
-
-// Auth State Change Listeners (Mô phỏng Firebase onAuthStateChanged)
+// Auth State Change Listeners
 type AuthCallback = (user: { uid: string; displayName: string; email?: string } | null) => void;
 const authListeners = new Set<AuthCallback>();
 
@@ -67,7 +34,7 @@ function notifyAuthListeners() {
     ? {
         uid: current.uid,
         displayName: current.username,
-        email: current.email || `${current.username}@metro.local`
+        email: current.email || `${current.username}@metro.server`
       }
     : null;
 
@@ -80,7 +47,7 @@ function notifyAuthListeners() {
   });
 }
 
-// Đối tượng mô phỏng Firebase Auth
+// Đối tượng mô phỏng Auth cho game
 export const auth = {
   get currentUser() {
     const current = getCachedUserProfile();
@@ -88,24 +55,23 @@ export const auth = {
     return {
       uid: current.uid,
       displayName: current.username,
-      email: current.email || `${current.username}@metro.local`,
+      email: current.email || `${current.username}@metro.server`,
       emailVerified: true,
       isAnonymous: current.uid.startsWith('guest_')
     };
   }
 };
 
-// Hàm lắng nghe sự thay đổi trạng thái đăng nhập
+// Hàm lắng nghe trạng thái đăng nhập
 export function onAuthStateChanged(_authInstance: any, callback: AuthCallback): () => void {
   authListeners.add(callback);
-  // Gọi ngay lập tức với trạng thái hiện tại
   const current = getCachedUserProfile();
   callback(
     current
       ? {
           uid: current.uid,
           displayName: current.username,
-          email: current.email || `${current.username}@metro.local`
+          email: current.email || `${current.username}@metro.server`
         }
       : null
   );
@@ -115,117 +81,85 @@ export function onAuthStateChanged(_authInstance: any, callback: AuthCallback): 
   };
 }
 
-// Định dạng username sang dạng email hiển thị
 export function formatUsernameToEmail(username: string): string {
   const clean = username.trim().toLowerCase();
   if (clean.includes('@') && clean.includes('.')) {
     return clean;
   }
   const sanitized = clean.replace(/[^a-z0-9_]/g, '');
-  return `${sanitized || 'player'}@metro.com`;
+  return `${sanitized || 'player'}@metro.server`;
 }
 
 // =========================================================================
-// 1. ĐĂNG KÝ TÀI KHOẢN MỚI
+// 1. ĐĂNG KÝ TÀI KHOẢN MỚI TRÊN SERVER
 // =========================================================================
 export async function registerWithUsername(username: string, password: string): Promise<UserProfile> {
-  const cleanUsername = username.trim();
-  if (cleanUsername.length < 3) {
-    throw new Error('Tên người dùng phải có ít nhất 3 ký tự.');
-  }
-  if (password.length < 6) {
-    throw new Error('Mật khẩu phải có ít nhất 6 ký tự.');
-  }
+  const res = await fetch('/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
 
-  const users = getStoredUsersMap();
-  const normalizedKey = cleanUsername.toLowerCase();
-
-  if (users[normalizedKey]) {
-    throw new Error('Tên người dùng này đã có người đăng ký trên máy! Hãy chọn tên khác hoặc bấm Đăng nhập.');
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Đăng ký tài khoản trên server thất bại');
   }
 
-  const uid = 'usr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
-  const now = new Date().toISOString();
-  const email = formatUsernameToEmail(cleanUsername);
-
-  const profile: UserProfile = {
-    uid,
-    username: cleanUsername,
-    email,
-    createdAt: now,
-    lastLoginAt: now
-  };
-
-  // Lưu tài khoản vào danh bạ người dùng
-  users[normalizedKey] = {
-    ...profile,
-    passwordHash: btoa(password) // Mã hóa cơ bản để bảo vệ mật khẩu
-  };
-  persistUsersMap(users);
-
-  // Đặt làm tài khoản đang hoạt động
+  const profile: UserProfile = data.profile;
   localStorage.setItem(STORAGE_ACTIVE_USER_KEY, JSON.stringify(profile));
   notifyAuthListeners();
-
   return profile;
 }
 
 // =========================================================================
-// 2. ĐĂNG NHẬP TÀI KHOẢN
+// 2. ĐĂNG NHẬP TÀI KHOẢN TỪ SERVER
 // =========================================================================
 export async function loginWithUsername(username: string, password: string): Promise<UserProfile> {
-  const cleanUsername = username.trim();
-  const users = getStoredUsersMap();
-  const normalizedKey = cleanUsername.toLowerCase();
-  const userRecord = users[normalizedKey];
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
 
-  if (!userRecord) {
-    throw new Error('Không tìm thấy tài khoản này! Hãy chuyển sang mục "Đăng ký" để tạo tài khoản mới.');
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Đăng nhập tài khoản trên server thất bại');
   }
 
-  // Kiểm tra mật khẩu
-  if (userRecord.passwordHash !== btoa(password) && userRecord.passwordHash !== password) {
-    throw new Error('Mật khẩu không chính xác! Vui lòng thử lại.');
-  }
-
-  const now = new Date().toISOString();
-  userRecord.lastLoginAt = now;
-  users[normalizedKey] = userRecord;
-  persistUsersMap(users);
-
-  const profile: UserProfile = {
-    uid: userRecord.uid,
-    username: userRecord.username,
-    email: userRecord.email,
-    createdAt: userRecord.createdAt,
-    lastLoginAt: now
-  };
-
+  const profile: UserProfile = data.profile;
   localStorage.setItem(STORAGE_ACTIVE_USER_KEY, JSON.stringify(profile));
   notifyAuthListeners();
-
   return profile;
 }
 
 // =========================================================================
-// 3. ĐĂNG NHẬP DẠNG KHÁCH (1-CHẠM CHƠI NGAY)
+// 3. ĐĂNG NHẬP KHÁCH TRÊN SERVER (1-CHẠM)
 // =========================================================================
 export async function loginAsGuest(): Promise<UserProfile> {
-  const guestCode = Math.random().toString(36).substring(2, 7).toUpperCase();
-  const guestName = `Khách_${guestCode}`;
-  const now = new Date().toISOString();
+  try {
+    const res = await fetch('/api/auth/guest', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      const profile: UserProfile = data.profile;
+      localStorage.setItem(STORAGE_ACTIVE_USER_KEY, JSON.stringify(profile));
+      notifyAuthListeners();
+      return profile;
+    }
+  } catch (err) {
+    console.warn('Lỗi kết nối server guest API, dùng tài khoản tạm:', err);
+  }
 
+  // Fallback tạm nếu server offline
+  const guestName = `Khách_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
   const profile: UserProfile = {
     uid: `guest_${Date.now().toString(36)}`,
     username: guestName,
     email: undefined,
-    createdAt: now,
-    lastLoginAt: now
+    createdAt: new Date().toISOString(),
+    lastLoginAt: new Date().toISOString()
   };
-
   localStorage.setItem(STORAGE_ACTIVE_USER_KEY, JSON.stringify(profile));
   notifyAuthListeners();
-
   return profile;
 }
 
@@ -238,7 +172,7 @@ export async function logoutUser(): Promise<void> {
 }
 
 // =========================================================================
-// 5. LƯU TIẾN TRÌNH THÀNH PHỐ CỦA NGƯỜI DÙNG
+// 5. LƯU TIẾN TRÌNH THÀNH PHỐ LÊN SERVER
 // =========================================================================
 export async function saveCityToCloud(
   userId: string,
@@ -247,48 +181,52 @@ export async function saveCityToCloud(
   totalPassengers = 0,
   totalDays = 0
 ): Promise<void> {
-  try {
-    // Lưu độc lập cho từng người dùng
-    const userSaveKey = `${STORAGE_CITY_SAVE_PREFIX}${userId}_${cityId}`;
-    localStorage.setItem(userSaveKey, saveJson);
-
-    // Lưu thêm bản sao dự phòng theo thành phố
-    localStorage.setItem(`city_save_${cityId}`, saveJson);
-
-    // Lưu metadata thống kê (ngày, khách, thời gian cập nhật)
-    const meta: CloudSaveData = {
+  // Gửi trực tiếp lên Server để lưu vào ổ cứng máy chủ
+  const res = await fetch('/api/saves', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       userId,
       cityId,
-      saveJson: '',
-      version: 3,
+      saveJson,
       totalPassengers,
-      totalDays,
-      updatedAt: new Date().toISOString()
-    };
-    localStorage.setItem(`${userSaveKey}_meta`, JSON.stringify(meta));
-  } catch (err) {
-    console.error('Lỗi khi lưu game:', err);
-    throw new Error('Bộ nhớ trình duyệt đầy, không thể lưu thêm!');
+      totalDays
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Lỗi khi lưu tiến trình lên server');
   }
+
+  // Lưu thêm 1 bản dự phòng trên trình duyệt để tải siêu nhanh
+  try {
+    localStorage.setItem(`metro_city_save_${userId}_${cityId}`, saveJson);
+    localStorage.setItem(`city_save_${cityId}`, saveJson);
+  } catch {}
 }
 
 // =========================================================================
-// 6. TẢI TIẾN TRÌNH THÀNH PHỐ ĐÃ LƯU
+// 6. TẢI TIẾN TRÌNH THÀNH PHỐ TỪ SERVER
 // =========================================================================
 export async function loadCityFromCloud(userId: string, cityId: string): Promise<string | null> {
   try {
-    // 1. Thử tải file save của người dùng này
-    const userSaveKey = `${STORAGE_CITY_SAVE_PREFIX}${userId}_${cityId}`;
-    const userSave = localStorage.getItem(userSaveKey);
-    if (userSave) return userSave;
-
-    // 2. Thử tải bản sao dự phòng
-    const backupSave = localStorage.getItem(`city_save_${cityId}`);
-    if (backupSave) return backupSave;
+    // 1. Tải trực tiếp từ Server
+    const res = await fetch(`/api/saves/${encodeURIComponent(userId)}/${encodeURIComponent(cityId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.data && data.data.saveJson) {
+        return data.data.saveJson;
+      }
+    }
   } catch (err) {
-    console.warn('Lỗi khi đọc file save:', err);
+    console.warn('Lỗi khi tải từ server, kiểm tra bộ nhớ đệm:', err);
   }
-  return null;
+
+  // 2. Dự phòng: Đọc từ cache trình duyệt nếu server mất kết nối
+  const userSave = localStorage.getItem(`metro_city_save_${userId}_${cityId}`);
+  if (userSave) return userSave;
+  return localStorage.getItem(`city_save_${cityId}`);
 }
 
 // =========================================================================

@@ -102,7 +102,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     : (lang === 'vi' ? 'Đăng ký Tài khoản Mới' : 'Create New Account')}
                 </h2>
                 <p className="text-[10px] text-cyan-400/80 font-mono">
-                  {lang === 'vi' ? 'Lưu trữ Cục bộ & Bảo mật' : 'Local & Secure Storage'}
+                  {lang === 'vi' ? 'Đồng bộ & Lưu trữ trên Server' : 'Server Storage & Sync'}
                 </p>
               </div>
             </div>
@@ -229,8 +229,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           <div className="mt-4 pt-3 border-t border-slate-800 text-center text-[10px] text-slate-400">
             {lang === 'vi'
-              ? 'Dữ liệu được lưu trữ trực tiếp trên thiết bị (Không cần tài khoản Google)'
-              : 'Data securely stored locally on this device (No Google account needed)'}
+              ? 'Dữ liệu tài khoản & màn chơi được lưu trữ trên Server'
+              : 'Account & game save data securely stored on the server'}
           </div>
         </div>
       </div>
