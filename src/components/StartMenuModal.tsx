@@ -13,7 +13,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { CityMapConfig } from '../types/game';
-import { UserProfile } from '../services/firebase';
+import { UserProfile } from '../services/authStorage';
 import { CAMPAIGN_SCENARIOS } from '../data/campaignScenarios';
 import { MenuAnimatedTracks } from './MenuAnimatedTracks';
 

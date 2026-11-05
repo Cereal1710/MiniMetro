@@ -39,9 +39,9 @@ import {
   getCachedUserProfile,
   saveCityToCloud,
   loadCityFromCloud,
-  logoutUser
-} from './services/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+  logoutUser,
+  onAuthStateChanged
+} from './services/authStorage';
 
 interface DragState {
   isDragging: boolean;
@@ -2662,7 +2662,7 @@ export default function App() {
         theme={theme}
       />
 
-      {/* User Login & Register Modal (Firebase Auth) */}
+      {/* User Login & Register Modal (Local Storage) */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}

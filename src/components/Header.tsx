@@ -37,7 +37,7 @@ import {
 import { GameMode, CityMapConfig, WeatherState, UrbanIncident, UrbanSurgeEvent } from '../types/game';
 import { formatMoney, TrackRoutingStyle } from '../utils/geometry';
 import { DAY_NAMES_VI, DAY_NAMES_EN } from '../simulation/metroEngine';
-import { UserProfile } from '../services/firebase';
+import { UserProfile } from '../services/authStorage';
 
 interface HeaderProps {
   cityName: string;

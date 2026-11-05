@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Lock, User, Sparkles, AlertCircle, LogIn, UserPlus } from 'lucide-react';
-import { loginWithUsername, registerWithUsername, loginAsGuest, UserProfile } from '../services/firebase';
+import { loginWithUsername, registerWithUsername, loginAsGuest, UserProfile } from '../services/authStorage';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -61,7 +61,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       } else if (msg.includes('network-request-failed')) {
         setError(lang === 'vi' ? 'Không thể kết nối tới Firebase (lỗi mạng). Bạn có thể bấm "Chơi với tư cách Khách" để chơi ngay.' : 'Cannot connect to Firebase. You can play as Guest.');
       } else {
-        setError(lang === 'vi' ? `Thông báo: ${msg}` : `Notice: ${msg}`);
+        setError(msg);
       }
     } finally {
       setLoading(false);
@@ -115,7 +115,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   : (lang === 'vi' ? 'Đăng ký Tài khoản Mới' : 'Create New Account')}
               </h2>
               <p className="text-[10px] text-cyan-400/80 font-mono">
-                {lang === 'vi' ? 'Đồng bộ Firebase Cloud' : 'Firebase Cloud Sync'}
+                {lang === 'vi' ? 'Lưu trữ Cục bộ & Bảo mật' : 'Local & Secure Storage'}
               </p>
             </div>
           </div>
@@ -244,8 +244,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         <div className="mt-4 pt-3 border-t border-slate-800 text-center text-[10px] text-slate-400">
           {lang === 'vi'
-            ? 'Dữ liệu được lưu trữ & đồng bộ bảo mật qua Firebase Cloud'
-            : 'Data securely saved & synced via Firebase Cloud'}
+            ? 'Dữ liệu được lưu trữ trực tiếp trên thiết bị (Không cần tài khoản Google)'
+            : 'Data securely stored locally on this device (No Google account needed)'}
         </div>
         </div>
       </div>
