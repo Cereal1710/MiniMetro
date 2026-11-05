@@ -24,6 +24,34 @@ export interface CloudSaveData {
 
 const STORAGE_ACTIVE_USER_KEY = 'metro_user_profile';
 
+// Helper: Gửi request POST an toàn kèm xử lý lỗi JSON
+async function postJson(url: string, body?: any): Promise<any> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch (netErr: any) {
+    throw new Error('Không thể kết nối đến máy chủ: ' + (netErr?.message || 'Lỗi mạng'));
+  }
+
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Máy chủ chưa sẵn sàng hoặc cổng kết nối bị gián đoạn. Vui lòng bấm Cmd + Shift + R để tải lại.`);
+  }
+
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || `Yêu cầu thất bại (mã ${res.status})`);
+  }
+
+  return data;
+}
+
 // Auth State Change Listeners
 type AuthCallback = (user: { uid: string; displayName: string; email?: string } | null) => void;
 const authListeners = new Set<AuthCallback>();
@@ -94,17 +122,7 @@ export function formatUsernameToEmail(username: string): string {
 // 1. ĐĂNG KÝ TÀI KHOẢN MỚI TRÊN SERVER
 // =========================================================================
 export async function registerWithUsername(username: string, password: string): Promise<UserProfile> {
-  const res = await fetch('/api/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
-
-  const data = await res.json();
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || 'Đăng ký tài khoản trên server thất bại');
-  }
-
+  const data = await postJson('/api/auth/register', { username, password });
   const profile: UserProfile = data.profile;
   localStorage.setItem(STORAGE_ACTIVE_USER_KEY, JSON.stringify(profile));
   notifyAuthListeners();
@@ -115,17 +133,7 @@ export async function registerWithUsername(username: string, password: string): 
 // 2. ĐĂNG NHẬP TÀI KHOẢN TỪ SERVER
 // =========================================================================
 export async function loginWithUsername(username: string, password: string): Promise<UserProfile> {
-  const res = await fetch('/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
-
-  const data = await res.json();
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || 'Đăng nhập tài khoản trên server thất bại');
-  }
-
+  const data = await postJson('/api/auth/login', { username, password });
   const profile: UserProfile = data.profile;
   localStorage.setItem(STORAGE_ACTIVE_USER_KEY, JSON.stringify(profile));
   notifyAuthListeners();
@@ -137,14 +145,11 @@ export async function loginWithUsername(username: string, password: string): Pro
 // =========================================================================
 export async function loginAsGuest(): Promise<UserProfile> {
   try {
-    const res = await fetch('/api/auth/guest', { method: 'POST' });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      const profile: UserProfile = data.profile;
-      localStorage.setItem(STORAGE_ACTIVE_USER_KEY, JSON.stringify(profile));
-      notifyAuthListeners();
-      return profile;
-    }
+    const data = await postJson('/api/auth/guest');
+    const profile: UserProfile = data.profile;
+    localStorage.setItem(STORAGE_ACTIVE_USER_KEY, JSON.stringify(profile));
+    notifyAuthListeners();
+    return profile;
   } catch (err) {
     console.warn('Lỗi kết nối server guest API, dùng tài khoản tạm:', err);
   }
@@ -181,25 +186,15 @@ export async function saveCityToCloud(
   totalPassengers = 0,
   totalDays = 0
 ): Promise<void> {
-  // Gửi trực tiếp lên Server để lưu vào ổ cứng máy chủ
-  const res = await fetch('/api/saves', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId,
-      cityId,
-      saveJson,
-      totalPassengers,
-      totalDays
-    })
+  await postJson('/api/saves', {
+    userId,
+    cityId,
+    saveJson,
+    totalPassengers,
+    totalDays
   });
 
-  const data = await res.json();
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || 'Lỗi khi lưu tiến trình lên server');
-  }
-
-  // Lưu thêm 1 bản dự phòng trên trình duyệt để tải siêu nhanh
+  // Lưu thêm 1 bản dự phòng trên trình duyệt để nạp nhanh
   try {
     localStorage.setItem(`metro_city_save_${userId}_${cityId}`, saveJson);
     localStorage.setItem(`city_save_${cityId}`, saveJson);
@@ -211,10 +206,10 @@ export async function saveCityToCloud(
 // =========================================================================
 export async function loadCityFromCloud(userId: string, cityId: string): Promise<string | null> {
   try {
-    // 1. Tải trực tiếp từ Server
     const res = await fetch(`/api/saves/${encodeURIComponent(userId)}/${encodeURIComponent(cityId)}`);
     if (res.ok) {
-      const data = await res.json();
+      const text = await res.text();
+      const data = JSON.parse(text);
       if (data.success && data.data && data.data.saveJson) {
         return data.data.saveJson;
       }
@@ -223,7 +218,7 @@ export async function loadCityFromCloud(userId: string, cityId: string): Promise
     console.warn('Lỗi khi tải từ server, kiểm tra bộ nhớ đệm:', err);
   }
 
-  // 2. Dự phòng: Đọc từ cache trình duyệt nếu server mất kết nối
+  // Dự phòng: Đọc từ cache trình duyệt nếu server chưa có
   const userSave = localStorage.getItem(`metro_city_save_${userId}_${cityId}`);
   if (userSave) return userSave;
   return localStorage.getItem(`city_save_${cityId}`);
