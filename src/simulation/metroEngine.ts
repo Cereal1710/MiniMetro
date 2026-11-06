@@ -3348,6 +3348,14 @@ export class MetroEngine {
     return true;
   }
 
+  public calculateStationCapacity(station: Partial<Station>): number {
+    let cap = 6;
+    if (station.isInterchange) cap += 8; // Ga Trung Chuyển: +8 chỗ
+    if (station.isTodHub) cap += 8; // Ga Phức Hợp TOD: +8 chỗ
+    if (station.hasParkAndRide) cap += 10; // Ga Park & Ride: +10 chỗ
+    return cap;
+  }
+
   public upgradeStationToInterchange(stationId: string): boolean {
     const station = this.state.stations.find(s => s.id === stationId);
     if (!station || station.isInterchange) return false;
@@ -3361,9 +3369,9 @@ export class MetroEngine {
     }
 
     station.isInterchange = true;
-    station.maxCapacity = 14;
+    station.maxCapacity = this.calculateStationCapacity(station);
     soundEngine.playFanfare();
-    this.addFloatingText(station.x, station.y - 25, '★ Ga Trung Chuyển', '#F59E0B');
+    this.addFloatingText(station.x, station.y - 25, `★ Ga Trung Chuyển (Sức chứa: ${station.maxCapacity} khách)`, '#F59E0B');
     return true;
   }
 
@@ -3375,13 +3383,10 @@ export class MetroEngine {
     if (!station || !station.isInterchange) return false;
 
     station.isInterchange = false;
-    let baseCap = 6;
-    if (station.isTodHub) baseCap += 8;
-    if (station.hasParkAndRide) baseCap += 10;
-    station.maxCapacity = baseCap;
+    station.maxCapacity = this.calculateStationCapacity(station);
 
     soundEngine.playDisconnect();
-    this.addFloatingText(station.x, station.y - 25, `↩️ Hoàn tác Ga ${station.name} về Ga thường (Không hoàn tiền)`, '#F59E0B');
+    this.addFloatingText(station.x, station.y - 25, `↩️ Hoàn tác Ga ${station.name} (Sức chứa: ${station.maxCapacity} khách)`, '#F59E0B');
     return true;
   }
 
@@ -4196,12 +4201,12 @@ export class MetroEngine {
       this.addFloatingText(station.x, station.y - 25, '☀️ Lắp Mái Pin Mặt Trời thành công! (+$40/h)', '#EAB308');
     } else if (feature === 'tod') {
       station.isTodHub = true;
-      station.maxCapacity += 8;
-      this.addFloatingText(station.x, station.y - 25, '🏢 Nâng cấp Ga Phức Hợp TOD! (+8 chỗ & +$100/h)', '#06B6D4');
+      station.maxCapacity = this.calculateStationCapacity(station);
+      this.addFloatingText(station.x, station.y - 25, `🏢 Nâng cấp Ga Phức Hợp TOD! (+8 chỗ, Tổng: ${station.maxCapacity} & +$100/h)`, '#06B6D4');
     } else if (feature === 'parkAndRide') {
       station.hasParkAndRide = true;
-      station.maxCapacity += 10;
-      this.addFloatingText(station.x, station.y - 25, '🅿️ Xây Bãi Gửi Xe Park & Ride! (+10 chỗ & +$1/khách)', '#10B981');
+      station.maxCapacity = this.calculateStationCapacity(station);
+      this.addFloatingText(station.x, station.y - 25, `🅿️ Xây Bãi Gửi Xe Park & Ride! (+10 chỗ, Tổng: ${station.maxCapacity} & +$1/khách)`, '#10B981');
     } else if (feature === 'feeder') {
       station.hasFeederStation = true;
       this.addFloatingText(station.x, station.y - 25, '🛵 Thành lập Trạm Xe Ôm Feeder thành công!', '#38BDF8');
@@ -4267,11 +4272,11 @@ export class MetroEngine {
       else if (feat === 'solar') station.hasSolarRoof = true;
       else if (feat === 'tod') {
         station.isTodHub = true;
-        station.maxCapacity += 8;
+        station.maxCapacity = this.calculateStationCapacity(station);
       }
       else if (feat === 'parkAndRide') {
         station.hasParkAndRide = true;
-        station.maxCapacity += 10;
+        station.maxCapacity = this.calculateStationCapacity(station);
       }
       else if (feat === 'feeder') station.hasFeederStation = true;
     }

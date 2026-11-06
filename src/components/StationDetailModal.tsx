@@ -393,7 +393,9 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
             >
               <Star className="w-4 h-4 fill-current" />
               <span>
-                {lang === 'vi' ? 'Nâng cấp Ga Trung Chuyển ($350 - Sức chứa 14)' : 'Upgrade to Interchange Hub ($350 - 14 Capacity)'}
+                {lang === 'vi'
+                  ? `Nâng cấp Ga Trung Chuyển ($350 - Tăng lên ${station.maxCapacity + 8} chỗ)`
+                  : `Upgrade to Interchange Hub ($350 - Increases to ${station.maxCapacity + 8} Cap)`}
               </span>
             </button>
           </div>
@@ -402,9 +404,13 @@ export const StationDetailModal: React.FC<StationDetailModalProps> = ({
             <div className="w-full py-2.5 px-3 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/30 text-xs font-bold flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>{lang === 'vi' ? 'Đã là Ga Trung Chuyển tối ưu (Sức chứa 14 khách)' : 'Optimal Interchange Hub Active (14 Capacity)'}</span>
+                <span>
+                  {lang === 'vi'
+                    ? `Đã là Ga Trung Chuyển tối ưu (Sức chứa ${station.maxCapacity} khách)`
+                    : `Optimal Interchange Hub Active (${station.maxCapacity} Capacity)`}
+                </span>
               </span>
-              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-[10px] font-mono">14 PAX</span>
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-[10px] font-mono">{station.maxCapacity} PAX</span>
             </div>
 
             {/* Revert Interchange Hub Button */}

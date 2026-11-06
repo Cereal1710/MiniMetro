@@ -49,6 +49,7 @@ interface MiniMetroDockProps {
   onOpenInspector?: () => void;
   onToggleCreative?: () => void;
   onRenameLine?: (lineId: string, newName: string) => void;
+  onRebalanceHeadway?: (lineId: string) => void;
 }
 
 function getShapeGlyph(shape?: StationShape): string {
@@ -92,7 +93,8 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
   onOpenBank,
   onOpenInspector,
   onToggleCreative,
-  onRenameLine
+  onRenameLine,
+  onRebalanceHeadway
 }) => {
   const isDark = theme === 'dark';
   const [activePopupLineId, setActivePopupLineId] = useState<string | null>(null);
@@ -381,43 +383,62 @@ export const MiniMetroDock: React.FC<MiniMetroDockProps> = ({
             )}
           </div>
 
-          {/* Row 3: Train Type Selector */}
-          {onChangeLineType && (
-            <div className={`flex items-center gap-1 p-0.5 rounded-lg border w-fit overflow-x-auto scrollbar-none ${
-              isDark ? 'bg-neutral-800/60 border-neutral-700/60' : 'bg-neutral-100 border-neutral-300'
-            }`}>
-              {(['metro', 'intercity', 'high_speed', 'double_decker', 'feeder_bus'] as MetroLineType[]).map((type) => {
-                const currentType = selectedLine.type || 'metro';
-                const isCur = currentType === type;
-                const label = {
-                  metro: { text: 'Metro', speed: '1.0x', descVi: 'Chuẩn 1.0x', icon: '🚇' },
-                  intercity: { text: 'Intercity', speed: '+20%', descVi: 'Nhanh hơn 20%', icon: '🚆' },
-                  high_speed: { text: 'H.Speed', speed: '+80%', descVi: 'Nhanh hơn 80%', icon: '🚅' },
-                  double_decker: { text: '2-Tầng', speed: '+20%', descVi: 'Tàu 2 tầng (+20% tốc độ, x2 sức chứa)', icon: '🏢' },
-                  feeder_bus: { text: 'BRT', speed: '-10%', descVi: 'Buýt BRT (6 chỗ/xe, -10% tốc độ, qua cầu miễn phí)', icon: '🚌' }
-                }[type];
+          {/* Row 3: Train Type Selector & Nút Giãn Cách Điều Tiết */}
+          <div className="flex items-center justify-between gap-1.5 w-full min-w-0">
+            {onChangeLineType && (
+              <div className={`flex items-center gap-0.5 sm:gap-1 p-0.5 rounded-lg border shrink overflow-x-auto scrollbar-none ${
+                isDark ? 'bg-neutral-800/60 border-neutral-700/60' : 'bg-neutral-100 border-neutral-300'
+              }`}>
+                {(['metro', 'intercity', 'high_speed', 'double_decker', 'feeder_bus'] as MetroLineType[]).map((type) => {
+                  const currentType = selectedLine.type || 'metro';
+                  const isCur = currentType === type;
+                  const label = {
+                    metro: { text: 'Metro', speed: '1.0x', descVi: 'Chuẩn 1.0x', icon: '🚇' },
+                    intercity: { text: 'Intercity', speed: '+20%', descVi: 'Nhanh hơn 20%', icon: '🚆' },
+                    high_speed: { text: 'H.Speed', speed: '+80%', descVi: 'Nhanh hơn 80%', icon: '🚅' },
+                    double_decker: { text: '2-Tầng', speed: '+20%', descVi: 'Tàu 2 tầng (+20% tốc độ, x2 sức chứa)', icon: '🏢' },
+                    feeder_bus: { text: 'BRT', speed: '-10%', descVi: 'Buýt BRT (6 chỗ/xe, -10% tốc độ, qua cầu miễn phí)', icon: '🚌' }
+                  }[type];
 
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => onChangeLineType(selectedLine.id, type)}
-                    title={`${label.descVi || label.text} (${lang === 'vi' ? 'Tốc độ' : 'Speed'}: ${label.speed})`}
-                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 whitespace-nowrap ${
-                      isCur
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : isDark
-                        ? 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50'
-                        : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200'
-                    }`}
-                  >
-                    <span>{label.icon}</span>
-                    <span>{label.text}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => onChangeLineType(selectedLine.id, type)}
+                      title={`${label.descVi || label.text} (${lang === 'vi' ? 'Tốc độ' : 'Speed'}: ${label.speed})`}
+                      className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[9px] sm:text-[10px] font-bold flex items-center gap-0.5 sm:gap-1 transition cursor-pointer active:scale-95 whitespace-nowrap ${
+                        isCur
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : isDark
+                          ? 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/50'
+                          : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200'
+                      }`}
+                    >
+                      <span>{label.icon}</span>
+                      <span>{label.text}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Nút Giãn Cách (Khoảng trống bên phải dưới nút Depot - Không làm tràn) */}
+            {onRebalanceHeadway && (
+              <button
+                type="button"
+                onClick={() => onRebalanceHeadway(selectedLine.id)}
+                title={lang === 'vi' ? 'Điều tiết khoảng cách giãn cách đều giữa các đoàn tàu trên tuyến (Anti-Bunching)' : 'Rebalance equal train headway spacing (Anti-Bunching)'}
+                className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 border shrink-0 whitespace-nowrap ${
+                  isDark
+                    ? 'bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border-amber-500/40'
+                    : 'bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300'
+                }`}
+              >
+                <Zap className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
+                <span>{lang === 'vi' ? 'Giãn cách' : 'Spacing'}</span>
+              </button>
+            )}
+          </div>
 
           {/* Row 3: Route Station Sequence List (With Remove 'X') */}
           {selectedLine.stationIds.length > 0 && (

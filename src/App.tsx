@@ -2096,6 +2096,10 @@ export default function App() {
               onOpenInspector={() => setIsInspectorModalOpen(true)}
               onToggleCreative={() => setIsCreativeToolbarOpen(prev => !prev)}
               onRenameLine={handleRenameLine}
+              onRebalanceHeadway={(lId) => {
+                engine?.rebalanceLineHeadway(lId);
+                syncSnapshot();
+              }}
             />
           )}
 
