@@ -246,6 +246,12 @@ export default function App() {
   const [hideStationUpgrades, setHideStationUpgrades] = useState<boolean>(() => {
     return localStorage.getItem('mini_metro_hide_station_upgrades') === 'true';
   });
+  const [hideStationNames, setHideStationNames] = useState<boolean>(() => {
+    return localStorage.getItem('mini_metro_hide_station_names') === 'true';
+  });
+  const [hideInterchangeDisplay, setHideInterchangeDisplay] = useState<boolean>(() => {
+    return localStorage.getItem('mini_metro_hide_interchange_display') === 'true';
+  });
 
   const handleToggleHideStationIcons = useCallback(() => {
     setHideStationIcons(prev => {
@@ -267,6 +273,22 @@ export default function App() {
     setHideStationUpgrades(prev => {
       const next = !prev;
       localStorage.setItem('mini_metro_hide_station_upgrades', next ? 'true' : 'false');
+      return next;
+    });
+  }, []);
+
+  const handleToggleHideStationNames = useCallback(() => {
+    setHideStationNames(prev => {
+      const next = !prev;
+      localStorage.setItem('mini_metro_hide_station_names', next ? 'true' : 'false');
+      return next;
+    });
+  }, []);
+
+  const handleToggleHideInterchangeDisplay = useCallback(() => {
+    setHideInterchangeDisplay(prev => {
+      const next = !prev;
+      localStorage.setItem('mini_metro_hide_interchange_display', next ? 'true' : 'false');
       return next;
     });
   }, []);
@@ -983,11 +1005,12 @@ export default function App() {
               selectedStationId: inspectingStation?.id || null,
               dragState: dragStateRef.current.isDragging ? dragStateRef.current : null,
               hoveredStationId: dragStateRef.current.targetStationId || hoveredStationRef.current,
-              showStationNames: true,
+              showStationNames: !hideStationNames,
               trackStyle,
               hideStationIcons,
               hidePassengerCount,
               hideStationUpgrades,
+              hideInterchangeDisplay,
               weather: engine.state.weather,
               timeOfDayHours: engine.state.timeOfDayHours,
               parks: engine.mapConfig.parks,
@@ -1010,7 +1033,7 @@ export default function App() {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [theme, selectedLineId, inspectingStation, trackStyle, hideStationIcons, hidePassengerCount, hideStationUpgrades]);
+  }, [theme, selectedLineId, inspectingStation, trackStyle, hideStationIcons, hidePassengerCount, hideStationUpgrades, hideStationNames, hideInterchangeDisplay]);
 
   // Handle pointer down (both mouse and touch)
   // Handle pointer down (both mouse and touch)
@@ -1951,6 +1974,8 @@ export default function App() {
           hideStationIcons={hideStationIcons}
           hidePassengerCount={hidePassengerCount}
           hideStationUpgrades={hideStationUpgrades}
+          hideStationNames={hideStationNames}
+          hideInterchangeDisplay={hideInterchangeDisplay}
           disableIncidents={disableIncidents}
           onSetSpeed={(speed) => engine?.setGameSpeed(speed)}
           onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
@@ -1967,6 +1992,8 @@ export default function App() {
           onToggleHideStationIcons={handleToggleHideStationIcons}
           onToggleHidePassengerCount={handleToggleHidePassengerCount}
           onToggleHideStationUpgrades={handleToggleHideStationUpgrades}
+          onToggleHideStationNames={handleToggleHideStationNames}
+          onToggleHideInterchangeDisplay={handleToggleHideInterchangeDisplay}
           onToggleDisableIncidents={handleToggleDisableIncidents}
           onUnlockAllStations={() => {
             if (engine) {

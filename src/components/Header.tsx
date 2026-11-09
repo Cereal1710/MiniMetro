@@ -25,6 +25,8 @@ import {
   Eye,
   EyeOff,
   CreditCard,
+  Type,
+  CircleDot,
   User,
   AlertTriangle,
   ShieldCheck,
@@ -65,6 +67,8 @@ interface HeaderProps {
   hideStationIcons?: boolean;
   hidePassengerCount?: boolean;
   hideStationUpgrades?: boolean;
+  hideStationNames?: boolean;
+  hideInterchangeDisplay?: boolean;
   disableIncidents?: boolean;
   onSetSpeed: (speed: number) => void;
   onToggleTheme: () => void;
@@ -77,6 +81,8 @@ interface HeaderProps {
   onToggleHideStationIcons?: () => void;
   onToggleHidePassengerCount?: () => void;
   onToggleHideStationUpgrades?: () => void;
+  onToggleHideStationNames?: () => void;
+  onToggleHideInterchangeDisplay?: () => void;
   onToggleDisableIncidents?: () => void;
   onResetGame: () => void;
   onOpenTutorial: () => void;
@@ -124,6 +130,8 @@ export const Header: React.FC<HeaderProps> = ({
   hideStationIcons = false,
   hidePassengerCount = false,
   hideStationUpgrades = false,
+  hideStationNames = false,
+  hideInterchangeDisplay = false,
   disableIncidents = false,
   onSetSpeed,
   onToggleTheme,
@@ -136,6 +144,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleHideStationIcons,
   onToggleHidePassengerCount,
   onToggleHideStationUpgrades,
+  onToggleHideStationNames,
+  onToggleHideInterchangeDisplay,
   onToggleDisableIncidents,
   onResetGame,
   onOpenTutorial,
@@ -667,6 +677,58 @@ export const Header: React.FC<HeaderProps> = ({
                     : 'bg-emerald-500/15 text-emerald-400'
                     }`}>
                     {hideStationUpgrades
+                      ? (lang === 'vi' ? 'ĐANG ẨN' : 'HIDDEN')
+                      : (lang === 'vi' ? 'HIỆN' : 'SHOWN')}
+                  </span>
+                </button>
+              )}
+
+              {/* Toggle Hide Station Names */}
+              {onToggleHideStationNames && (
+                <button
+                  onClick={onToggleHideStationNames}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-neutral-100 text-slate-800'
+                    }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {hideStationNames ? (
+                      <EyeOff className="w-4 h-4 text-rose-400" />
+                    ) : (
+                      <Type className="w-4 h-4 text-sky-400" />
+                    )}
+                    <span>{lang === 'vi' ? 'Ẩn tên của nhà ga' : 'Hide Station Names'}</span>
+                  </div>
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${hideStationNames
+                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    : 'bg-sky-500/15 text-sky-400'
+                    }`}>
+                    {hideStationNames
+                      ? (lang === 'vi' ? 'ĐANG ẨN' : 'HIDDEN')
+                      : (lang === 'vi' ? 'HIỆN' : 'SHOWN')}
+                  </span>
+                </button>
+              )}
+
+              {/* Toggle Hide Interchange Display */}
+              {onToggleHideInterchangeDisplay && (
+                <button
+                  onClick={onToggleHideInterchangeDisplay}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-neutral-100 text-slate-800'
+                    }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {hideInterchangeDisplay ? (
+                      <EyeOff className="w-4 h-4 text-rose-400" />
+                    ) : (
+                      <CircleDot className="w-4 h-4 text-amber-400" />
+                    )}
+                    <span>{lang === 'vi' ? 'Ẩn hiển thị trung chuyển' : 'Hide Interchange Display'}</span>
+                  </div>
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${hideInterchangeDisplay
+                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    : 'bg-amber-500/15 text-amber-400'
+                    }`}>
+                    {hideInterchangeDisplay
                       ? (lang === 'vi' ? 'ĐANG ẨN' : 'HIDDEN')
                       : (lang === 'vi' ? 'HIỆN' : 'SHOWN')}
                   </span>

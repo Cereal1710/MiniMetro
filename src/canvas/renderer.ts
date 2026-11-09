@@ -90,6 +90,7 @@ export interface RenderOptions {
   hideStationIcons?: boolean;
   hidePassengerCount?: boolean;
   hideStationUpgrades?: boolean;
+  hideInterchangeDisplay?: boolean;
   weather?: WeatherState;
   timeOfDayHours?: number;
   parks?: MapPark[];
@@ -906,7 +907,7 @@ export function renderScene(
       const firstPts = firstSeg.polyline.points;
       if (firstPts.length >= 2) {
         const s0 = stationMap.get(line.stationIds[0]);
-        const s0Radius = s0?.isInterchange ? 20 : 15;
+        const s0Radius = (s0?.isInterchange && !options.hideInterchangeDisplay) ? 20 : 15;
         let nextPt = firstPts[1];
         for (let k = 1; k < firstPts.length; k++) {
           if (distance(firstPts[0], firstPts[k]) >= 6) {
@@ -931,7 +932,7 @@ export function renderScene(
       const lastPts = lastSeg.polyline.points;
       if (lastPts.length >= 2) {
         const sEnd = stationMap.get(line.stationIds[line.stationIds.length - 1]);
-        const sEndRadius = sEnd?.isInterchange ? 20 : 15;
+        const sEndRadius = (sEnd?.isInterchange && !options.hideInterchangeDisplay) ? 20 : 15;
         const endPt = lastPts[lastPts.length - 1];
         let prevPt = lastPts[lastPts.length - 2];
         for (let k = lastPts.length - 2; k >= 0; k--) {
@@ -1562,7 +1563,7 @@ export function renderScene(
   const drawSingleStation = (station: Station) => {
     const isHovered = options.hoveredStationId === station.id;
     const isSelected = options.selectedStationId === station.id;
-    const baseRadius = station.isInterchange ? 20 : 15;
+    const baseRadius = (station.isInterchange && !options.hideInterchangeDisplay) ? 20 : 15;
 
     // Detect if this station is a terminus of any non-loop line, and check T-bar outward direction
     let terminusDirX = 0;
@@ -1662,7 +1663,7 @@ export function renderScene(
     }
 
     // Interchange Hub double ring & amber star badge
-    if (station.isInterchange) {
+    if (station.isInterchange && !options.hideInterchangeDisplay) {
       ctx.beginPath();
       ctx.arc(station.x, station.y, baseRadius + 7, 0, Math.PI * 2);
       ctx.strokeStyle = '#F59E0B';
@@ -1798,11 +1799,11 @@ export function renderScene(
     // Station Main Geometry: If hideStationIcons is true, render a clean circular stop marker
     if (options.hideStationIcons) {
       ctx.beginPath();
-      ctx.arc(station.x, station.y, station.isInterchange ? 13 : 9.5, 0, Math.PI * 2);
+      ctx.arc(station.x, station.y, (station.isInterchange && !options.hideInterchangeDisplay) ? 13 : 9.5, 0, Math.PI * 2);
       ctx.fillStyle = stationFillColor;
       ctx.fill();
       ctx.strokeStyle = stationBorderColor;
-      ctx.lineWidth = station.isInterchange ? 4.2 : 3.2;
+      ctx.lineWidth = (station.isInterchange && !options.hideInterchangeDisplay) ? 4.2 : 3.2;
       ctx.stroke();
     } else {
       drawShape(
@@ -1813,7 +1814,7 @@ export function renderScene(
         baseRadius,
         stationFillColor,
         stationBorderColor,
-        station.isInterchange ? 4.5 : 3.8
+        (station.isInterchange && !options.hideInterchangeDisplay) ? 4.5 : 3.8
       );
     }
 

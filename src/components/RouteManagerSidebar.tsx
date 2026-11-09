@@ -135,19 +135,33 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
   const [editingLineCode, setEditingLineCode] = React.useState<string>('');
   const [networkTab, setNetworkTab] = React.useState<'metro' | 'bus'>('metro');
 
-  // Tự động chuyển tab khi người chơi nhấp chọn tuyến trên bản đồ
+  // Chỉ tự động chuyển tab khi người chơi chủ động bấm chọn tuyến mới trên bản đồ
+  const prevSelectedLineIdRef = React.useRef<string | null>(selectedLineId);
   React.useEffect(() => {
-    if (selectedLineId) {
-      const line = lines.find(l => l.id === selectedLineId);
-      if (line) {
-        if (isBusLineType(line.type)) {
-          setNetworkTab('bus');
-        } else {
-          setNetworkTab('metro');
+    if (prevSelectedLineIdRef.current !== selectedLineId) {
+      prevSelectedLineIdRef.current = selectedLineId;
+      if (selectedLineId) {
+        const line = lines.find(l => l.id === selectedLineId);
+        if (line) {
+          setNetworkTab(isBusLineType(line.type) ? 'bus' : 'metro');
         }
       }
     }
   }, [selectedLineId, lines]);
+
+  const handleSwitchTab = (targetTab: 'metro' | 'bus') => {
+    setNetworkTab(targetTab);
+    if (selectedLineId) {
+      const line = lines.find(l => l.id === selectedLineId);
+      if (line) {
+        const lineIsBus = isBusLineType(line.type);
+        if ((targetTab === 'bus' && !lineIsBus) || (targetTab === 'metro' && lineIsBus)) {
+          onSelectLine(null);
+          prevSelectedLineIdRef.current = null;
+        }
+      }
+    }
+  };
 
   const metroLines = lines.filter(l => !isBusLineType(l.type));
   const busLines = lines.filter(l => isBusLineType(l.type));
@@ -187,7 +201,7 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
           {/* Quick Tab Switcher in Mini Mode */}
           <div className="flex flex-col items-center gap-1 p-0.5 rounded-xl bg-slate-950/60 border border-slate-800">
             <button
-              onClick={() => setNetworkTab('metro')}
+              onClick={() => handleSwitchTab('metro')}
               title={lang === 'vi' ? `Mạng Đường Sắt (${metroLines.length}/${inventory.availableLines})` : `Metro Rail (${metroLines.length}/${inventory.availableLines})`}
               className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs transition cursor-pointer ${
                 networkTab === 'metro' ? 'bg-emerald-600 text-white font-bold shadow-xs' : 'text-slate-400 hover:text-white'
@@ -196,7 +210,7 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
               🚇
             </button>
             <button
-              onClick={() => setNetworkTab('bus')}
+              onClick={() => handleSwitchTab('bus')}
               title={lang === 'vi' ? `Mạng Lưới Xe Buýt (${busLines.length}/${availableBusLines})` : `Bus Network (${busLines.length}/${availableBusLines})`}
               className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs transition cursor-pointer ${
                 networkTab === 'bus' ? 'bg-amber-500 text-neutral-900 font-bold shadow-xs' : 'text-slate-400 hover:text-white'
@@ -398,7 +412,7 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
         <div className="grid grid-cols-2 gap-1.5 p-1 mx-3.5 mt-2.5 mb-1 rounded-2xl bg-slate-950/70 border border-slate-800 shadow-inner">
           <button
             type="button"
-            onClick={() => setNetworkTab('metro')}
+            onClick={() => handleSwitchTab('metro')}
             className={`py-2 px-2 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
               networkTab === 'metro'
                 ? 'bg-emerald-600 text-white shadow-md'
@@ -416,7 +430,7 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
 
           <button
             type="button"
-            onClick={() => setNetworkTab('bus')}
+            onClick={() => handleSwitchTab('bus')}
             className={`py-2 px-2 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
               networkTab === 'bus'
                 ? 'bg-amber-500 text-neutral-900 shadow-md ring-1 ring-amber-400'
