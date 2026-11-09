@@ -123,6 +123,7 @@ export interface LinePerformanceStats {
 export interface MetroLine {
   id: string;
   name: string;
+  code?: string;
   color: string;
   textColor: string;
   darkColor: string;

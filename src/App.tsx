@@ -1712,10 +1712,10 @@ export default function App() {
     syncSnapshot();
   }, [syncSnapshot]);
 
-  const handleRenameLine = useCallback((lineId: string, newName: string) => {
+  const handleRenameLine = useCallback((lineId: string, newName: string, newCode?: string) => {
     const engine = engineRef.current;
     if (!engine) return;
-    if (engine.renameLine(lineId, newName)) {
+    if (engine.renameLine(lineId, newName, newCode)) {
       syncSnapshot();
     }
   }, [syncSnapshot]);
@@ -2256,13 +2256,13 @@ export default function App() {
               },
               standard_bus: {
                 label: 'Buýt Thường',
-                speedLabel: '0.90x (6 Chỗ)',
+                speedLabel: '0.80x (6 Chỗ)',
                 badgeBg: 'bg-amber-600/20 text-amber-300 border-amber-500/40',
                 icon: '🚌'
               },
               feeder_bus: {
                 label: 'Buýt BRT',
-                speedLabel: '1.15x (4 Chỗ)',
+                speedLabel: '0.90x (4 Chỗ)',
                 badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
                 icon: '⚡'
               }

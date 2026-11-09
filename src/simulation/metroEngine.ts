@@ -67,10 +67,10 @@ export const DAY_NAMES_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 export function getLineSpeedMultiplier(type?: MetroLineType): number {
   switch (type) {
-    case 'feeder_bus': // Xe buýt BRT (Chạy làn riêng, tốc độ nhanh hơn)
-      return 1.15;
-    case 'standard_bus': // Xe buýt bình thường (Chạy làn hỗn hợp)
+    case 'feeder_bus': // Xe buýt BRT (Chạy làn riêng, tốc độ 0.90x)
       return 0.90;
+    case 'standard_bus': // Xe buýt bình thường (Chạy làn hỗn hợp, tốc độ 0.80x)
+      return 0.80;
     case 'double_decker':
       return 1.20; // Double-decker train (speed same as intercity: +20%)
     case 'intercity':
@@ -2457,7 +2457,7 @@ export class MetroEngine {
         }
       }
     } else if (type === 'feeder_bus') {
-      // Xe BRT: 4 chỗ/xe (chạy làn ưu tiên tốc độ 1.15x)
+      // Xe BRT: 4 chỗ/xe (chạy làn ưu tiên tốc độ 0.90x)
       for (const t of this.state.trains) {
         if (t.lineId === lineId) {
           if (t.carriagesCount > 0) {
@@ -2469,7 +2469,7 @@ export class MetroEngine {
         }
       }
     } else if (type === 'standard_bus') {
-      // Xe buýt thường: 6 chỗ/xe (chạy làn hỗn hợp tốc độ 0.90x)
+      // Xe buýt thường: 6 chỗ/xe (chạy làn hỗn hợp tốc độ 0.80x)
       for (const t of this.state.trains) {
         if (t.lineId === lineId) {
           if (t.carriagesCount > 0) {
@@ -2497,21 +2497,25 @@ export class MetroEngine {
         : type === 'double_decker'
           ? 'Tàu 2 Tầng (2x sức chứa, miễn phí)'
           : type === 'feeder_bus'
-            ? 'Xe BRT (4 chỗ, tốc độ 1.15x, làn ưu tiên)'
+            ? 'Xe BRT (4 chỗ, tốc độ 0.90x, làn ưu tiên)'
             : type === 'standard_bus'
-              ? 'Xe Buýt Thường (6 chỗ, 0.90x tốc độ, làn hỗn hợp)'
+              ? 'Xe Buýt Thường (6 chỗ, 0.80x tốc độ, làn hỗn hợp)'
               : 'Metro (Chuẩn 1.0x)';
     this.addFloatingText(740, 500, `${line.name} ➔ ${typeLabel}`, '#10B981');
     return true;
   }
 
-  public renameLine(lineId: string, newName: string): boolean {
+  public renameLine(lineId: string, newName: string, newCode?: string): boolean {
     const line = this.state.lines.find(l => l.id === lineId);
     const trimmed = newName.trim();
     if (!line || !trimmed) return false;
     line.name = trimmed;
+    if (newCode !== undefined) {
+      const trimmedCode = newCode.trim().substring(0, 5).toUpperCase();
+      line.code = trimmedCode || undefined;
+    }
     soundEngine.playConnect();
-    this.addFloatingText(740, 500, `✏️ Tuyến: ${trimmed}`, line.color);
+    this.addFloatingText(740, 500, `✏️ Tuyến: ${line.code ? `[${line.code}] ` : ''}${trimmed}`, line.color);
     return true;
   }
 
@@ -3281,15 +3285,14 @@ export class MetroEngine {
   }
 
   public buyBus(): boolean {
-    const busCount = this.state.trains.filter(t => t.vehicleType === 'bus').length + (this.state.inventory.unassignedBuses ?? 0);
-    const cost = 300 + busCount * 50;
+    const cost = 150;
     if (this.state.money < cost) return false;
 
     this.state.money -= cost;
     this.state.inventory.unassignedBuses = (this.state.inventory.unassignedBuses ?? 0) + 1;
     this.state.stats.totalExpenses = (this.state.stats.totalExpenses || 0) + cost;
     soundEngine.playBusHorn();
-    this.addFloatingText(740, 500, `+1 Xe Buýt Nhanh BRT (-$${cost})`, '#10B981');
+    this.addFloatingText(740, 500, `+1 Xe Buýt (-$${cost})`, '#10B981');
     return true;
   }
 

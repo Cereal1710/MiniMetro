@@ -49,7 +49,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   const isDark = theme === 'dark';
 
   const trainCost = 400 + totalTrainsCount * 100;
-  const busCost = 300 + (inventory.unassignedBuses ?? 0) * 50;
+  const busCost = 150;
   const carriageCost = 250;
   const lineCost = 3000;
   const interchangeCost = 350;

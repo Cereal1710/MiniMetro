@@ -48,7 +48,7 @@ interface MiniMetroDockProps {
   onOpenBank?: () => void;
   onOpenInspector?: () => void;
   onToggleCreative?: () => void;
-  onRenameLine?: (lineId: string, newName: string) => void;
+  onRenameLine?: (lineId: string, newName: string, newCode?: string) => void;
   onRebalanceHeadway?: (lineId: string) => void;
 }
 

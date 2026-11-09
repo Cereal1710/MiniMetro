@@ -27,7 +27,7 @@ interface LineSettingsModalProps {
   lang: 'vi' | 'en';
   onClose: () => void;
   onSave: (lineId: string, depotStationId: string, dispatchIntervalSeconds: number) => void;
-  onRenameLine?: (lineId: string, newName: string) => void;
+  onRenameLine?: (lineId: string, newName: string, newCode?: string) => void;
   onToggleCBTC?: (lineId: string) => void;
 }
 
