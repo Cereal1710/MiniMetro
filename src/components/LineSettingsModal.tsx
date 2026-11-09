@@ -157,6 +157,7 @@ export const LineSettingsModal: React.FC<LineSettingsModalProps> = ({
                       autoFocus
                       onChange={(e) => setNameInput(e.target.value)}
                       onKeyDown={(e) => {
+                        e.stopPropagation();
                         if (e.key === 'Enter') {
                           const trimmed = nameInput.trim();
                           if (trimmed && onRenameLine) {

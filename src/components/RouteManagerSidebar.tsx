@@ -582,6 +582,19 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                           value={editingLineCode}
                           maxLength={5}
                           onChange={(e) => setEditingLineCode(e.target.value.toUpperCase().slice(0, 5))}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Enter') {
+                              const trimmedName = editingLineName.trim();
+                              const trimmedCode = editingLineCode.trim().toUpperCase().slice(0, 5);
+                              if (trimmedName && onRenameLine) {
+                                onRenameLine(line.id, trimmedName, trimmedCode || undefined);
+                              }
+                              setEditingLineId(null);
+                            } else if (e.key === 'Escape') {
+                              setEditingLineId(null);
+                            }
+                          }}
                           style={{ backgroundColor: line.color, color: line.textColor }}
                           className={`w-[30px] h-[30px] min-w-[30px] min-h-[30px] aspect-square rounded-full text-center p-0 font-black uppercase shadow-inner border border-white/40 focus:outline-hidden focus:ring-2 focus:ring-amber-400 shrink-0 placeholder:text-white/60 overflow-hidden ${getCircleBadgeTextClass(editingLineCode.length || 2)}`}
                           title={lang === 'vi' ? 'Kí hiệu tuyến (tối đa 5 ký tự)' : 'Line code (max 5 chars)'}
@@ -596,6 +609,7 @@ export const RouteManagerSidebar: React.FC<RouteManagerSidebarProps> = ({
                           autoFocus
                           onChange={(e) => setEditingLineName(e.target.value)}
                           onKeyDown={(e) => {
+                            e.stopPropagation();
                             if (e.key === 'Enter') {
                               const trimmedName = editingLineName.trim();
                               const trimmedCode = editingLineCode.trim().toUpperCase().slice(0, 5);
