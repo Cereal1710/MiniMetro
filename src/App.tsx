@@ -25,7 +25,7 @@ import { DonationModal } from './components/DonationModal';
 import { MassStationUpgradeModal } from './components/MassStationUpgradeModal';
 import { ZoomIn, ZoomOut, Maximize2, Move } from 'lucide-react';
 
-import { CITY_MAPS, LINE_PALETTE } from './data/maps';
+import { CITY_MAPS, LINE_PALETTE, BUS_PALETTE } from './data/maps';
 import { getAllCities } from './data/customCities';
 import { MetroEngine } from './simulation/metroEngine';
 import { renderScene, getTrainAtScreenPos } from './canvas/renderer';
@@ -243,6 +243,9 @@ export default function App() {
   const [hidePassengerCount, setHidePassengerCount] = useState<boolean>(() => {
     return localStorage.getItem('mini_metro_hide_passenger_count') === 'true';
   });
+  const [hideStationUpgrades, setHideStationUpgrades] = useState<boolean>(() => {
+    return localStorage.getItem('mini_metro_hide_station_upgrades') === 'true';
+  });
 
   const handleToggleHideStationIcons = useCallback(() => {
     setHideStationIcons(prev => {
@@ -256,6 +259,14 @@ export default function App() {
     setHidePassengerCount(prev => {
       const next = !prev;
       localStorage.setItem('mini_metro_hide_passenger_count', next ? 'true' : 'false');
+      return next;
+    });
+  }, []);
+
+  const handleToggleHideStationUpgrades = useCallback(() => {
+    setHideStationUpgrades(prev => {
+      const next = !prev;
+      localStorage.setItem('mini_metro_hide_station_upgrades', next ? 'true' : 'false');
       return next;
     });
   }, []);
@@ -323,7 +334,7 @@ export default function App() {
     startPanY: 0
   });
   const [zoomPercent, setZoomPercent] = useState<number>(100);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
   // Line Color Customization
   const [editingColorLine, setEditingColorLine] = useState<{ line: MetroLine; index: number } | null>(null);
@@ -976,6 +987,7 @@ export default function App() {
               trackStyle,
               hideStationIcons,
               hidePassengerCount,
+              hideStationUpgrades,
               weather: engine.state.weather,
               timeOfDayHours: engine.state.timeOfDayHours,
               parks: engine.mapConfig.parks,
@@ -998,7 +1010,7 @@ export default function App() {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [theme, selectedLineId, inspectingStation, trackStyle, hideStationIcons, hidePassengerCount]);
+  }, [theme, selectedLineId, inspectingStation, trackStyle, hideStationIcons, hidePassengerCount, hideStationUpgrades]);
 
   // Handle pointer down (both mouse and touch)
   // Handle pointer down (both mouse and touch)
@@ -1598,11 +1610,12 @@ export default function App() {
   const handleCreateNewLine = useCallback(() => {
     const engine = engineRef.current;
     if (!engine) return;
-    if (engine.state.lines.length >= engine.state.inventory.availableLines) return;
-    const nextIdx = engine.state.lines.length % LINE_PALETTE.length;
+    if (!engine.canCreateLine('metro')) return;
+    const metroCount = engine.getStandardLinesCount();
+    const nextIdx = metroCount % LINE_PALETTE.length;
     const pal = LINE_PALETTE[nextIdx];
     const created = engine.createLine(
-      `Tuyến 0${engine.state.lines.length + 1}`,
+      `Tuyến 0${metroCount + 1}`,
       pal.color,
       pal.darkColor,
       pal.textColor
@@ -1610,6 +1623,39 @@ export default function App() {
     if (created) {
       setSelectedLineId(created.id);
     }
+    syncSnapshot();
+  }, [syncSnapshot]);
+
+  const handleCreateNewBusLine = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (!engine.canCreateBusLine()) return;
+    const busCount = engine.getBusLinesCount();
+    const nextIdx = busCount % BUS_PALETTE.length;
+    const pal = BUS_PALETTE[nextIdx];
+    const created = engine.createBusLine(
+      `Tuyến Buýt 0${busCount + 1}`,
+      pal.color,
+      pal.darkColor,
+      pal.textColor
+    );
+    if (created) {
+      setSelectedLineId(created.id);
+    }
+    syncSnapshot();
+  }, [syncSnapshot]);
+
+  const handleBuyBus = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.buyBus();
+    syncSnapshot();
+  }, [syncSnapshot]);
+
+  const handleBuyBusLineSlot = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.buyBusLineSlot();
     syncSnapshot();
   }, [syncSnapshot]);
 
@@ -1894,6 +1940,7 @@ export default function App() {
           trackStyle={trackStyle}
           hideStationIcons={hideStationIcons}
           hidePassengerCount={hidePassengerCount}
+          hideStationUpgrades={hideStationUpgrades}
           disableIncidents={disableIncidents}
           onSetSpeed={(speed) => engine?.setGameSpeed(speed)}
           onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
@@ -1909,6 +1956,7 @@ export default function App() {
           onToggleCreativeToolbar={() => setIsCreativeToolbarOpen(prev => !prev)}
           onToggleHideStationIcons={handleToggleHideStationIcons}
           onToggleHidePassengerCount={handleToggleHidePassengerCount}
+          onToggleHideStationUpgrades={handleToggleHideStationUpgrades}
           onToggleDisableIncidents={handleToggleDisableIncidents}
           onUnlockAllStations={() => {
             if (engine) {
@@ -1941,8 +1989,8 @@ export default function App() {
 
       {/* Main Workspace Layout: Left Scrollable Route Manager Sidebar + Canvas */}
       <div className="flex-1 flex overflow-hidden relative w-full h-full">
-        {/* Left Scrollable Route Manager Sidebar (Shown only when manually expanded and not Game Over) */}
-        {state && !state.isGameOver && !isSidebarCollapsed && (
+        {/* Left Scrollable Route Manager Sidebar (Always rendered with sleek collapse/expand rail) */}
+        {state && !state.isGameOver && (
           <RouteManagerSidebar
             lines={state.lines}
             trains={state.trains}
@@ -1958,6 +2006,10 @@ export default function App() {
             onToggleCollapse={() => setIsSidebarCollapsed(v => !v)}
             onSelectLine={(lId) => setSelectedLineId(lId)}
             onCreateNewLine={handleCreateNewLine}
+            onCreateNewBusLine={handleCreateNewBusLine}
+            onBuyBus={handleBuyBus}
+            onBuyBusLineSlot={handleBuyBusLineSlot}
+            money={state.money}
             onDeleteLine={handleRequestDeleteLine}
             onRequestDeleteLine={handleRequestDeleteLine}
             onChangeLineType={(lId, type) => {
@@ -2044,62 +2096,6 @@ export default function App() {
               onDismissIncident={handleDismissIncident}
               onRepairTrain={handleRepairTrain}
               onDeploySecurity={handleDeploySecurity}
-            />
-          )}
-
-          {/* Authentic Mini Metro Bottom Dock */}
-          {state && !state.isGameOver && (
-            <MiniMetroDock
-              lines={state.lines}
-              trains={state.trains}
-              stations={state.stations}
-              inventory={state.inventory}
-              selectedLineId={selectedLineId}
-              theme={theme}
-              lang={lang}
-              isUnlimitedMode={engine?.isUnlimitedMode || false}
-              isPlacingStation={isPlacingStation}
-              onSelectLine={(lId) => setSelectedLineId(lId)}
-              onCreateNewLine={handleCreateNewLine}
-              onDeleteLine={handleRequestDeleteLine}
-              onDeployTrain={(lId) => {
-                engine?.deployTrainToLine(lId);
-                syncSnapshot();
-              }}
-              onRemoveTrain={(lId) => {
-                engine?.removeTrainFromLine(lId);
-                syncSnapshot();
-              }}
-              onAddCarriage={(lId) => {
-                engine?.addCarriageToLine(lId);
-                syncSnapshot();
-              }}
-              onRemoveCarriage={(lId) => {
-                engine?.removeCarriageFromLine(lId);
-                syncSnapshot();
-              }}
-              onEditLineColor={(line, idx) => setEditingColorLine({ line, index: idx })}
-              onOpenLineSettings={(line) => setEditingSettingsLine(line)}
-              onChangeLineType={(lId, type) => {
-                engine?.updateLineType(lId, type);
-                syncSnapshot();
-              }}
-              onToggleLineDepot={handleToggleLineDepot}
-              onRemoveStationFromLine={(lId, sId) => {
-                engine?.removeStationFromLine(lId, sId);
-                syncSnapshot();
-              }}
-              onStartPlacingStation={() => setIsPlacingStation(prev => !prev)}
-              onToggleRouteManager={() => setIsSidebarCollapsed(prev => !prev)}
-              onOpenShop={() => setIsShopModalOpen(true)}
-              onOpenBank={() => setIsBankModalOpen(true)}
-              onOpenInspector={() => setIsInspectorModalOpen(true)}
-              onToggleCreative={() => setIsCreativeToolbarOpen(prev => !prev)}
-              onRenameLine={handleRenameLine}
-              onRebalanceHeadway={(lId) => {
-                engine?.rebalanceLineHeadway(lId);
-                syncSnapshot();
-              }}
             />
           )}
 
@@ -2258,11 +2254,17 @@ export default function App() {
                 badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
                 icon: '🏢'
               },
+              standard_bus: {
+                label: 'Buýt Thường',
+                speedLabel: '0.90x (6 Chỗ)',
+                badgeBg: 'bg-amber-600/20 text-amber-300 border-amber-500/40',
+                icon: '🚌'
+              },
               feeder_bus: {
                 label: 'Buýt BRT',
-                speedLabel: '-10% (0.90x)',
+                speedLabel: '1.15x (4 Chỗ)',
                 badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-                icon: '🚌'
+                icon: '⚡'
               }
             }[lineType] || {
               label: 'Metro',
@@ -2423,6 +2425,7 @@ export default function App() {
           onClose={() => setIsShopModalOpen(false)}
           onBuyTrain={() => { engine?.buyTrain(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
           onBuyBus={() => { engine?.buyBus(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
+          onBuyBusLineSlot={handleBuyBusLineSlot}
           onBuyCarriage={() => { engine?.buyCarriage(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
           onBuyLine={() => { engine?.buyLine(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}
           onBuyInterchange={() => { engine?.buyInterchangeUpgrade(); syncSnapshot(); if (engine) MetroEngine.saveToStorage(engine); }}

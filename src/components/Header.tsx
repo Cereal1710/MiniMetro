@@ -24,6 +24,7 @@ import {
   Unlock,
   Eye,
   EyeOff,
+  CreditCard,
   User,
   AlertTriangle,
   ShieldCheck,
@@ -63,6 +64,7 @@ interface HeaderProps {
   trackStyle?: TrackRoutingStyle;
   hideStationIcons?: boolean;
   hidePassengerCount?: boolean;
+  hideStationUpgrades?: boolean;
   disableIncidents?: boolean;
   onSetSpeed: (speed: number) => void;
   onToggleTheme: () => void;
@@ -74,6 +76,7 @@ interface HeaderProps {
   onUnlockAllStations?: () => void;
   onToggleHideStationIcons?: () => void;
   onToggleHidePassengerCount?: () => void;
+  onToggleHideStationUpgrades?: () => void;
   onToggleDisableIncidents?: () => void;
   onResetGame: () => void;
   onOpenTutorial: () => void;
@@ -120,6 +123,7 @@ export const Header: React.FC<HeaderProps> = ({
   trackStyle = 'octolinear',
   hideStationIcons = false,
   hidePassengerCount = false,
+  hideStationUpgrades = false,
   disableIncidents = false,
   onSetSpeed,
   onToggleTheme,
@@ -131,6 +135,7 @@ export const Header: React.FC<HeaderProps> = ({
   onUnlockAllStations,
   onToggleHideStationIcons,
   onToggleHidePassengerCount,
+  onToggleHideStationUpgrades,
   onToggleDisableIncidents,
   onResetGame,
   onOpenTutorial,
@@ -636,6 +641,32 @@ export const Header: React.FC<HeaderProps> = ({
                     : 'bg-blue-500/15 text-blue-400'
                     }`}>
                     {hidePassengerCount
+                      ? (lang === 'vi' ? 'ĐANG ẨN' : 'HIDDEN')
+                      : (lang === 'vi' ? 'HIỆN' : 'SHOWN')}
+                  </span>
+                </button>
+              )}
+
+              {/* Toggle Hide Station Upgrades (IC Card & Amenities) */}
+              {onToggleHideStationUpgrades && (
+                <button
+                  onClick={onToggleHideStationUpgrades}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-neutral-100 text-slate-800'
+                    }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {hideStationUpgrades ? (
+                      <EyeOff className="w-4 h-4 text-rose-400" />
+                    ) : (
+                      <CreditCard className="w-4 h-4 text-emerald-400" />
+                    )}
+                    <span>{lang === 'vi' ? 'Ẩn nâng cấp ga & IC Card' : 'Hide Station Upgrades & IC Card'}</span>
+                  </div>
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${hideStationUpgrades
+                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    : 'bg-emerald-500/15 text-emerald-400'
+                    }`}>
+                    {hideStationUpgrades
                       ? (lang === 'vi' ? 'ĐANG ẨN' : 'HIDDEN')
                       : (lang === 'vi' ? 'HIỆN' : 'SHOWN')}
                   </span>

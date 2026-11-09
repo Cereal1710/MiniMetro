@@ -89,6 +89,7 @@ export interface RenderOptions {
   trackStyle?: TrackRoutingStyle;
   hideStationIcons?: boolean;
   hidePassengerCount?: boolean;
+  hideStationUpgrades?: boolean;
   weather?: WeatherState;
   timeOfDayHours?: number;
   parks?: MapPark[];
@@ -741,7 +742,7 @@ export function renderScene(
           ctx.lineWidth = solidLineWidth;
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
-          if (line.type === 'feeder_bus') {
+          if (line.type === 'feeder_bus' || line.type === 'standard_bus') {
             ctx.setLineDash([10, 5]);
           }
           ctx.beginPath();
@@ -753,7 +754,7 @@ export function renderScene(
           ctx.restore();
         } else {
           // Feature 8: Feeder Bus uses road bridges across rivers
-          if (line.type === 'feeder_bus') {
+          if (line.type === 'feeder_bus' || line.type === 'standard_bus') {
             ctx.save();
             ctx.strokeStyle = casingColor;
             ctx.lineWidth = solidLineWidth + 3;
@@ -1048,10 +1049,11 @@ export function renderScene(
     const line = lines.find(l => l.id === train.lineId);
     if (!line || line.stationIds.length < 2) return;
 
-    const isBus = line.type === 'feeder_bus';
+    const isBus = line.type === 'feeder_bus' || line.type === 'standard_bus';
+    const isBrt = line.type === 'feeder_bus';
     const isDouble = !!train.isDoubleDecker || line.type === 'double_decker';
 
-    const carLength = isDouble ? 34 : isBus ? 28 : 30;
+    const carLength = isDouble ? 34 : isBrt ? 26 : isBus ? 32 : 30;
     const carWidth = isDouble ? 16.5 : isBus ? 13.5 : 14.5;
     const gap = isBus ? 4.5 : 5.0;
     const carSpacing = carLength + gap;
@@ -1434,7 +1436,7 @@ export function renderScene(
       if (isDouble) {
         carCapacity = c === 0 ? 12 : 8;
       } else if (isBus) {
-        carCapacity = 6;
+        carCapacity = line.type === 'feeder_bus' ? 4 : 6;
       } else {
         carCapacity = c === 0 ? 6 : 4;
       }
@@ -1442,7 +1444,7 @@ export function renderScene(
       let startPassengerIdx = 0;
       for (let prev = 0; prev < c; prev++) {
         if (isDouble) startPassengerIdx += (prev === 0 ? 12 : 8);
-        else if (isBus) startPassengerIdx += 6;
+        else if (isBus) startPassengerIdx += (line.type === 'feeder_bus' ? 4 : 6);
         else startPassengerIdx += (prev === 0 ? 6 : 4);
       }
 
@@ -1846,18 +1848,20 @@ export function renderScene(
       ctx.fillText(name, station.x, tagY);
 
       // Render station amenities mini pills below name tag
-      const amenities: string[] = [];
-      if (station.hasCoffeeKiosk) amenities.push('☕');
-      if (station.hasSolarRoof) amenities.push('☀️');
-      if (station.isTodHub) amenities.push('🏢');
-      if (station.hasParkAndRide) amenities.push('🅿️');
-      if (station.hasFeederStation) amenities.push('🛵');
+      if (!options.hideStationUpgrades) {
+        const amenities: string[] = [];
+        if (station.hasCoffeeKiosk) amenities.push('☕');
+        if (station.hasSolarRoof) amenities.push('☀️');
+        if (station.isTodHub) amenities.push('🏢');
+        if (station.hasParkAndRide) amenities.push('🅿️');
+        if (station.hasFeederStation) amenities.push('🛵');
 
-      if (amenities.length > 0) {
-        ctx.font = '10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillText(amenities.join(' '), station.x, tagY + 18);
+        if (amenities.length > 0) {
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.fillText(amenities.join(' '), station.x, tagY + 18);
+        }
       }
     }
 
@@ -1941,7 +1945,7 @@ export function renderScene(
     }
 
     // Feature 24: Smart IC Card contactless ticket gate badge
-    if (station.hasSmartIC) {
+    if (station.hasSmartIC && !options.hideStationUpgrades) {
       ctx.save();
       const icLabel = '💳 IC CARD';
       const badgeY = station.y - baseRadius - (station.isFlooded ? 44 : 18);

@@ -107,7 +107,9 @@ export interface LineSegment {
   crossesRiver: boolean;
 }
 
-export type MetroLineType = 'metro' | 'intercity' | 'high_speed' | 'double_decker' | 'feeder_bus';
+export type MetroLineType = 'metro' | 'intercity' | 'high_speed' | 'double_decker' | 'standard_bus' | 'feeder_bus';
+
+export const isBusLineType = (type?: MetroLineType): boolean => type === 'standard_bus' || type === 'feeder_bus';
 
 export interface LinePerformanceStats {
   todayPassengers: number;
@@ -318,6 +320,7 @@ export type TerrainToolMode = 'none' | 'add_station' | 'draw_river' | 'erase_wat
 
 export interface GameInventory {
   availableLines: number;
+  availableBusLines?: number; // Hạn mức Tuyến Xe Buýt Đô Thị riêng biệt
   unassignedTrains: number;
   unassignedBuses?: number; // Xe buýt BRT dự phòng
   carriages: number;
@@ -375,6 +378,8 @@ export interface GameStats {
   parkAndRideRevenueTotal?: number; // Doanh thu bãi gửi xe Park & Ride
   feederTripsCount?: number; // Số chuyến xe ôm công nghệ feeder
   railGrinderBoostUntil?: number; // Thời hạn tăng tốc xe cứu hộ đường ray
+  intermodalTransfersCount?: number; // Số lượt khách trung chuyển Bus ↔ Metro (+5$ thưởng)
+  totalIntermodalBonus?: number; // Tổng tiền thưởng trung chuyển liên tuyến
 }
 
 export type WeatherType = 'sunny' | 'rainy' | 'storm' | 'flooded';

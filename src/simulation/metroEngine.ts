@@ -11,6 +11,7 @@ import {
   Passenger,
   StationData,
   MetroLineType,
+  isBusLineType,
   WeatherType,
   WeatherState,
   UrbanIncident,
@@ -24,7 +25,7 @@ import {
 } from '../types/game';
 import { CAMPAIGN_SCENARIOS } from '../data/campaignScenarios';
 import { LINE_PALETTE } from '../data/maps';
-import { distance, segmentCrossesRiver, isPointInWater } from '../utils/geometry';
+import { distance, segmentCrossesRiver, isPointInWater, calculateLineLengthKm } from '../utils/geometry';
 import { 
   findNextTransitStep,
   canPassengerBoard,
@@ -66,8 +67,10 @@ export const DAY_NAMES_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 export function getLineSpeedMultiplier(type?: MetroLineType): number {
   switch (type) {
-    case 'feeder_bus':
-      return 0.90; // Agile city BRT bus (10% slower than metro)
+    case 'feeder_bus': // Xe buýt BRT (Chạy làn riêng, tốc độ nhanh hơn)
+      return 1.15;
+    case 'standard_bus': // Xe buýt bình thường (Chạy làn hỗn hợp)
+      return 0.90;
     case 'double_decker':
       return 1.20; // Double-decker train (speed same as intercity: +20%)
     case 'intercity':
@@ -129,15 +132,16 @@ export class MetroEngine {
   public toggleUnlimitedMode() {
     this.isUnlimitedMode = !this.isUnlimitedMode;
     if (this.isUnlimitedMode) {
-      // Chế độ Sáng tạo: Cấp 15 tuyến Metro (theo bảng 15 màu chuẩn), thêm $5.000.000 vào tài khoản
+      // Chế độ Sáng tạo: Cấp 15 tuyến Metro, 8 tuyến Xe Buýt, thêm $5.000.000 vào tài khoản
       this.state.inventory.availableLines = 15;
+      this.state.inventory.availableBusLines = 8;
       this.state.money += 5000000;
       this.state.inventory.unassignedTrains = Math.max(this.state.inventory.unassignedTrains, 20);
-      this.state.inventory.unassignedBuses = Math.max(this.state.inventory.unassignedBuses, 20);
+      this.state.inventory.unassignedBuses = Math.max(this.state.inventory.unassignedBuses ?? 0, 20);
       this.state.inventory.carriages = Math.max(this.state.inventory.carriages, 20);
       this.state.inventory.tunnelTokens = 99;
       this.state.inventory.interchangeTokens = 99;
-      this.addFloatingText(740, 470, '✨ Đã bật Sáng tạo: +$5.000.000 & 15 tuyến Metro!', '#10B981');
+      this.addFloatingText(740, 470, '✨ Đã bật Sáng tạo: +$5.000.000, 15 tuyến Metro & 8 tuyến Buýt!', '#10B981');
     }
   }
 
@@ -173,6 +177,7 @@ export class MetroEngine {
       trains: [],
       inventory: {
         availableLines: 3,
+        availableBusLines: 4,
         unassignedTrains: 2,
         unassignedBuses: 2,
         carriages: 1,
@@ -1105,34 +1110,41 @@ export class MetroEngine {
         let fare = 0;
 
         if (p.isMonthlyPassHolder) {
-          // Feature 12: 80% cư dân dùng vé tháng ($1400/tuần đã tính vào ngân sách) -> Vé lượt = $0!
+          // Feature 12: 80% cư dân dùng vé tháng ($1400/tuần đã tính vào ngân sách) -> Vé lượt = $0! (Đi cả tàu điện và xe buýt)
           fare = 0;
           monthlyPassDelivered++;
         } else {
-          // Feature 12: 1 ga = $2!
-          const stationsCount = Math.max(1, p.stationsTraveled || 1);
-          fare = stationsCount * 2; // 1 ga = $2!
+          const isBusLine = isBusLineType(line.type) || train.vehicleType === 'bus';
+          if (isBusLine) {
+            // Xe bus thành phố (<25km): $1 / lượt. Xe bus đường dài (>=25km): $2 / lượt.
+            const lengthKm = calculateLineLengthKm(line.stationIds, line.isLoop, this.state.stations);
+            fare = lengthKm >= 25 ? 2 : 1;
+          } else {
+            // Feature 12: 1 ga = $2!
+            const stationsCount = Math.max(1, p.stationsTraveled || 1);
+            fare = stationsCount * 2; // 1 ga = $2!
 
-          // Feature 19: Khách mang vali trả x3 vé!
-          if (p.hasLuggage) {
-            fare *= 3;
-            this.state.stats.luggageFareRevenueTotal = (this.state.stats.luggageFareRevenueTotal || 0) + fare;
+            // Feature 19: Khách mang vali trả x3 vé!
+            if (p.hasLuggage) {
+              fare *= 3;
+              this.state.stats.luggageFareRevenueTotal = (this.state.stats.luggageFareRevenueTotal || 0) + fare;
+            }
+
+            if (this.state.isRushHour) {
+              fare = Math.round(fare * 1.5);
+            }
+
+            if (station.specialHubType === 'airport' || station.specialHubType === 'seaport') {
+              fare = Math.round(fare * 1.5);
+            }
+
+            if (this.state.activeSurgeEvent && this.state.activeSurgeEvent.stationId === station.id) {
+              fare = Math.round(fare * this.state.activeSurgeEvent.fareMultiplier);
+            }
+
+            const modeMultiplier = this.state.gameMode === 'standard' ? 1.5 : 1;
+            fare = Math.round(fare * modeMultiplier);
           }
-
-          if (this.state.isRushHour) {
-            fare = Math.round(fare * 1.5);
-          }
-
-          if (station.specialHubType === 'airport' || station.specialHubType === 'seaport') {
-            fare = Math.round(fare * 1.5);
-          }
-
-          if (this.state.activeSurgeEvent && this.state.activeSurgeEvent.stationId === station.id) {
-            fare = Math.round(fare * this.state.activeSurgeEvent.fareMultiplier);
-          }
-
-          const modeMultiplier = this.state.gameMode === 'standard' ? 1.5 : 1;
-          fare = Math.round(fare * modeMultiplier);
 
           fareEarned += fare;
           this.state.stats.distanceFareRevenueTotal = (this.state.stats.distanceFareRevenueTotal || 0) + fare;
@@ -1228,7 +1240,14 @@ export class MetroEngine {
       this.state.money += fareEarned;
       soundEngine.playArrive(passengersDeliveredHere);
       if (fareEarned > 0) {
-        this.addFloatingText(station.x, station.y - 20, `+$${fareEarned} (Vé lẻ: $2/ga)`, '#10B981');
+        const isBusLine = isBusLineType(line.type) || train.vehicleType === 'bus';
+        if (isBusLine) {
+          const lengthKm = calculateLineLengthKm(line.stationIds, line.isLoop, this.state.stations);
+          const typeName = lengthKm >= 25 ? 'Buýt Đường Dài ($2)' : 'Buýt TP ($1)';
+          this.addFloatingText(station.x, station.y - 20, `+$${fareEarned} (${typeName})`, '#10B981');
+        } else {
+          this.addFloatingText(station.x, station.y - 20, `+$${fareEarned} (Vé lẻ: $2/ga)`, '#10B981');
+        }
       } else if (monthlyPassDelivered > 0) {
         this.addFloatingText(station.x, station.y - 20, `🎫 Vé Tháng (${monthlyPassDelivered} khách)`, '#06B6D4');
       }
@@ -2249,16 +2268,27 @@ export class MetroEngine {
 
   // Route Management
   public getStandardLinesCount(): number {
-    return this.state.lines.filter(l => l.type !== 'feeder_bus' && l.type !== 'double_decker').length;
+    return this.state.lines.filter(l => !isBusLineType(l.type)).length;
+  }
+
+  public getBusLinesCount(): number {
+    return this.state.lines.filter(l => isBusLineType(l.type)).length;
   }
 
   public canCreateLine(type: MetroLineType = 'metro'): boolean {
-    if (type === 'feeder_bus' || type === 'double_decker') return true;
+    if (isBusLineType(type)) {
+      return this.canCreateBusLine();
+    }
     return this.getStandardLinesCount() < this.state.inventory.availableLines;
   }
 
+  public canCreateBusLine(): boolean {
+    const quota = this.state.inventory.availableBusLines ?? 6;
+    return this.isUnlimitedMode || this.getBusLinesCount() < quota;
+  }
+
   public canCreateAnyLine(): boolean {
-    return true; // Feeder bus and double-decker lines are always free & available
+    return this.canCreateLine('metro') || this.canCreateBusLine();
   }
 
   public createLine(
@@ -2268,10 +2298,11 @@ export class MetroEngine {
     textColor: string,
     type: MetroLineType = 'metro'
   ): MetroLine | null {
-    if (type !== 'feeder_bus' && type !== 'double_decker') {
+    if (!isBusLineType(type)) {
       if (this.getStandardLinesCount() >= this.state.inventory.availableLines) {
-        // Hạn mức tối đa số tuyến Metro (tối đa 15 tuyến chuẩn), chuyển sang xe buýt gom nếu vượt quá
-        type = 'feeder_bus';
+        soundEngine.playDisconnect();
+        this.addFloatingText(740, 470, `❌ Hạn mức Tuyến Metro tối đa là ${this.state.inventory.availableLines} tuyến!`, '#EF4444');
+        return null;
       }
     }
 
@@ -2289,6 +2320,62 @@ export class MetroEngine {
     this.state.lines.push(newLine);
     soundEngine.playConnect();
     return newLine;
+  }
+
+  /**
+   * Tạo Tuyến Xe Buýt Đô Thị riêng biệt (Mạng lưới City Bus Network)
+   */
+  public createBusLine(
+    name: string,
+    color: string,
+    darkColor: string,
+    textColor: string
+  ): MetroLine | null {
+    const busQuota = this.state.inventory.availableBusLines ?? 6;
+    if (!this.isUnlimitedMode && this.getBusLinesCount() >= busQuota) {
+      soundEngine.playDisconnect();
+      this.addFloatingText(740, 470, `❌ Hết hạn mức Tuyến Buýt (${busQuota} tuyến)! Mở thêm trong Shop.`, '#F59E0B');
+      return null;
+    }
+
+    const newLine: MetroLine = {
+      id: `bus-line-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name,
+      color,
+      darkColor,
+      textColor,
+      stationIds: [],
+      isLoop: false,
+      type: 'standard_bus'
+    };
+
+    this.state.lines.push(newLine);
+    soundEngine.playConnect();
+    this.addFloatingText(740, 450, `🚌 Mở ${name} thành công! Kéo nối các ga để xe buýt hoạt động.`, color);
+    return newLine;
+  }
+
+  /**
+   * Mua thêm +1 Hạn mức Tuyến Xe Buýt Đô Thị
+   */
+  public buyBusLineSlot(): boolean {
+    const currentQuota = this.state.inventory.availableBusLines ?? 6;
+    if (currentQuota >= 12) {
+      this.addFloatingText(740, 470, '❌ Đã đạt hạn mức mạng lưới xe buýt tối đa (12 tuyến)!', '#EF4444');
+      return false;
+    }
+    const cost = 500 + (currentQuota - 4) * 150;
+    if (this.state.money < cost) {
+      soundEngine.playDisconnect();
+      this.addFloatingText(740, 470, `❌ Không đủ tiền mở thêm Tuyến Buýt! Cần $${cost.toLocaleString()}`, '#EF4444');
+      return false;
+    }
+
+    this.state.money -= cost;
+    this.state.inventory.availableBusLines = currentQuota + 1;
+    soundEngine.playFanfare();
+    this.addFloatingText(740, 470, `🚌 Nâng cấp Mạng Lưới Buýt: Đã mở thêm +1 Tuyến (Tối đa ${this.state.inventory.availableBusLines} tuyến)!`, '#F59E0B');
+    return true;
   }
 
   /**
@@ -2318,26 +2405,37 @@ export class MetroEngine {
     const oldType = line.type || 'metro';
     if (oldType === type) return true;
 
+    const isNowBus = isBusLineType(type);
+    const wasBus = isBusLineType(oldType);
+
     // Quota check: switching to standard rail requires available standard line slot (max 15 lines)
-    if ((type === 'metro' || type === 'intercity' || type === 'high_speed') && (oldType === 'feeder_bus' || oldType === 'double_decker')) {
+    if (!isNowBus && wasBus) {
       const currentStandard = this.getStandardLinesCount();
       if (currentStandard >= this.state.inventory.availableLines) {
         soundEngine.playDisconnect();
         this.addFloatingText(740, 470, `❌ Hết hạn mức tuyến Metro (${this.state.inventory.availableLines} tuyến)!`, '#EF4444');
         return false;
       }
+    } else if (isNowBus && !wasBus) {
+      const currentBus = this.getBusLinesCount();
+      const busQuota = this.state.inventory.availableBusLines ?? 6;
+      if (!this.isUnlimitedMode && currentBus >= busQuota) {
+        soundEngine.playDisconnect();
+        this.addFloatingText(740, 470, `❌ Hết hạn mức tuyến Buýt (${busQuota} tuyến)!`, '#F59E0B');
+        return false;
+      }
     }
 
-    // Feature 8: Handle river crossings (tunnels) when converting to / from BRT
+    // Feature 8: Handle river crossings (tunnels) when converting to / from bus
     const riverCrossings = this.countLineRiverCrossings(line);
     if (!this.isUnlimitedMode && riverCrossings > 0) {
-      // If switching FROM rail to BRT: BRT crosses road bridges for free, refund all tunnels
-      if (oldType !== 'feeder_bus' && type === 'feeder_bus') {
+      // If switching FROM rail to bus: bus crosses road bridges for free, refund all tunnels
+      if (!wasBus && isNowBus) {
         this.state.inventory.tunnelTokens += riverCrossings;
-        this.addFloatingText(740, 470, `+${riverCrossings} Hầm Vượt Sông hoàn lại (BRT qua cầu miễn phí)`, '#06B6D4');
+        this.addFloatingText(740, 470, `+${riverCrossings} Hầm Vượt Sông hoàn lại (Xe buýt qua cầu miễn phí)`, '#06B6D4');
       }
-      // If switching FROM BRT to rail: rail requires tunnels, verify and deduct tokens
-      else if (oldType === 'feeder_bus' && type !== 'feeder_bus') {
+      // If switching FROM bus to rail: rail requires tunnels, verify and deduct tokens
+      else if (wasBus && !isNowBus) {
         if (this.state.inventory.tunnelTokens < riverCrossings) {
           soundEngine.playDisconnect();
           this.addFloatingText(740, 470, `❌ Không đủ Hầm Vượt Sông! Cần ${riverCrossings} hầm để chuyển sang đường sắt`, '#EF4444');
@@ -2359,7 +2457,19 @@ export class MetroEngine {
         }
       }
     } else if (type === 'feeder_bus') {
-      // 1 BRT bus carries 6 passengers (does not attach train carriages, recall them)
+      // Xe BRT: 4 chỗ/xe (chạy làn ưu tiên tốc độ 1.15x)
+      for (const t of this.state.trains) {
+        if (t.lineId === lineId) {
+          if (t.carriagesCount > 0) {
+            this.state.inventory.carriages += t.carriagesCount;
+            t.carriagesCount = 0;
+          }
+          t.isDoubleDecker = false;
+          t.capacity = 4;
+        }
+      }
+    } else if (type === 'standard_bus') {
+      // Xe buýt thường: 6 chỗ/xe (chạy làn hỗn hợp tốc độ 0.90x)
       for (const t of this.state.trains) {
         if (t.lineId === lineId) {
           if (t.carriagesCount > 0) {
@@ -2387,8 +2497,10 @@ export class MetroEngine {
         : type === 'double_decker'
           ? 'Tàu 2 Tầng (2x sức chứa, miễn phí)'
           : type === 'feeder_bus'
-            ? 'Buýt BRT (Qua cầu miễn phí, tự do)'
-            : 'Metro (Chuẩn 1.0x)';
+            ? 'Xe BRT (4 chỗ, tốc độ 1.15x, làn ưu tiên)'
+            : type === 'standard_bus'
+              ? 'Xe Buýt Thường (6 chỗ, 0.90x tốc độ, làn hỗn hợp)'
+              : 'Metro (Chuẩn 1.0x)';
     this.addFloatingText(740, 500, `${line.name} ➔ ${typeLabel}`, '#10B981');
     return true;
   }
@@ -2490,7 +2602,7 @@ export class MetroEngine {
     const line = this.state.lines.find(l => l.id === lineId);
     if (line && line.stationIds.length >= 2 && !this.isUnlimitedMode && this.mapConfig.riverPolygons) {
       // Feeder bus lines use road bridges for free, so they do NOT tie up tunnel tokens
-      if (line.type !== 'feeder_bus') {
+      if (!isBusLineType(line.type)) {
         const riverCrossingRefund = this.countLineRiverCrossings(line);
         if (riverCrossingRefund > 0) {
           this.state.inventory.tunnelTokens += riverCrossingRefund;
@@ -2501,7 +2613,7 @@ export class MetroEngine {
 
     // Remove trains on this line and return them to inventory
     const trainsOnLine = this.state.trains.filter(t => t.lineId === lineId);
-    if (line.type === 'feeder_bus') {
+    if (isBusLineType(line.type)) {
       this.state.inventory.unassignedBuses = (this.state.inventory.unassignedBuses ?? 0) + trainsOnLine.length;
     } else {
       this.state.inventory.unassignedTrains += trainsOnLine.length;
@@ -2722,7 +2834,7 @@ export class MetroEngine {
 
     // If this line just reached 2 stations and has no vehicle yet, deploy 1 train/bus automatically if available
     const trainsOnLine = this.state.trains.filter(t => t.lineId === lineId);
-    const isBus = line.type === 'feeder_bus';
+    const isBus = isBusLineType(line.type);
     const hasStock = isBus ? (this.state.inventory.unassignedBuses ?? 0) > 0 : this.state.inventory.unassignedTrains > 0;
     if (line.stationIds.length === 2 && trainsOnLine.length === 0 && (this.isUnlimitedMode || hasStock)) {
       this.deployTrainToLine(lineId);
@@ -2792,8 +2904,8 @@ export class MetroEngine {
 
     if (!targetLine) return null;
 
-    // Feature 8: Xe buýt trung chuyển BRT đi qua cầu đường bộ vượt sông MIỄN PHÍ, không cần Hầm Vượt Sông!
-    const isFeederBus = targetLine.type === 'feeder_bus';
+    // Feature 8: Xe buýt trung chuyển đi qua cầu đường bộ vượt sông MIỄN PHÍ, không cần Hầm Vượt Sông!
+    const isFeederBus = isBusLineType(targetLine.type);
     if (crossesWater && !this.isUnlimitedMode && !isFeederBus) {
       if (this.state.inventory.tunnelTokens <= 0) {
         soundEngine.playDisconnect();
@@ -2807,8 +2919,8 @@ export class MetroEngine {
     const onConnected = (line: MetroLine): MetroLine => {
       soundEngine.playConnect();
       if (crossesWater && !this.isUnlimitedMode) {
-        if (line.type === 'feeder_bus') {
-          this.addFloatingText((fromStation.x + toStation.x) / 2, (fromStation.y + toStation.y) / 2 - 20, '🚌 Buýt BRT qua cầu (Miễn phí)', '#10B981');
+        if (isBusLineType(line.type)) {
+          this.addFloatingText((fromStation.x + toStation.x) / 2, (fromStation.y + toStation.y) / 2 - 20, '🚌 Xe buýt qua cầu (Miễn phí)', '#10B981');
         } else {
           this.state.inventory.tunnelTokens = Math.max(0, this.state.inventory.tunnelTokens - 1);
           this.addFloatingText((fromStation.x + toStation.x) / 2, (fromStation.y + toStation.y) / 2 - 20, '🌊 -1 Hầm Vượt Sông', '#06B6D4');
@@ -2818,7 +2930,7 @@ export class MetroEngine {
     };
 
     // If target line is brand new / empty
-    const isTargetBus = targetLine.type === 'feeder_bus';
+    const isTargetBus = isBusLineType(targetLine.type);
     const hasTargetStock = isTargetBus ? (this.state.inventory.unassignedBuses ?? 0) > 0 : this.state.inventory.unassignedTrains > 0;
 
     if (sIds.length === 0) {
@@ -2980,7 +3092,7 @@ export class MetroEngine {
     }
 
     // Check river crossings & tunnel quota
-    const isFeederBus = line.type === 'feeder_bus';
+    const isFeederBus = isBusLineType(line.type);
     const crossingsBefore = (!this.isUnlimitedMode && !isFeederBus) ? this.countLineRiverCrossings(line) : 0;
     const testIds = [...sIds];
     testIds.splice(foundIndex + 1, 0, insertStationId);
@@ -3029,7 +3141,7 @@ export class MetroEngine {
     const line = this.state.lines.find(l => l.id === lineId);
     if (!line || line.stationIds.length < 2) return false;
 
-    const isBus = line.type === 'feeder_bus';
+    const isBus = isBusLineType(line.type);
     if (!this.isUnlimitedMode) {
       if (isBus) {
         if ((this.state.inventory.unassignedBuses ?? 0) <= 0) return false;
@@ -3095,8 +3207,8 @@ export class MetroEngine {
       lineId,
       vehicleType: isBus ? 'bus' : 'train',
       carriagesCount: 0,
-      capacity: isDouble ? 12 : 6, // 1 xe BRT chở 6 người
-      speed: isBus ? 40 : 45,
+      capacity: isDouble ? 12 : (line.type === 'feeder_bus' ? 4 : (line.type === 'standard_bus' ? 6 : 6)),
+      speed: isBus ? (line.type === 'feeder_bus' ? 52 : 40) : 45,
       segmentIndex: segIdx,
       progress: 0,
       direction: dir,
@@ -3189,7 +3301,7 @@ export class MetroEngine {
     if (!line || !line.stationIds.includes(stationId)) return false;
 
     const station = this.state.stations.find(s => s.id === stationId);
-    const crossingsBefore = (!this.isUnlimitedMode && line.type !== 'feeder_bus') ? this.countLineRiverCrossings(line) : 0;
+    const crossingsBefore = (!this.isUnlimitedMode && !isBusLineType(line.type)) ? this.countLineRiverCrossings(line) : 0;
 
     // Remove this station from line
     line.stationIds = line.stationIds.filter(id => id !== stationId);
@@ -3217,7 +3329,7 @@ export class MetroEngine {
         this.addFloatingText(station.x, station.y - 30, `Đã xóa tuyến ${lineName} (ít hơn 2 ga) ➔ Hoàn tàu về kho`, '#EF4444');
       }
     } else {
-      const crossingsAfter = (!this.isUnlimitedMode && line.type !== 'feeder_bus') ? this.countLineRiverCrossings(line) : 0;
+      const crossingsAfter = (!this.isUnlimitedMode && !isBusLineType(line.type)) ? this.countLineRiverCrossings(line) : 0;
       if (crossingsBefore > crossingsAfter) {
         const refund = crossingsBefore - crossingsAfter;
         this.state.inventory.tunnelTokens += refund;
@@ -3273,8 +3385,8 @@ export class MetroEngine {
     if (!train || train.carriagesCount >= 2) return false;
 
     const line = this.state.lines.find(l => l.id === train.lineId);
-    if (line?.type === 'feeder_bus') {
-      this.addFloatingText(740, 500, 'Xe buýt BRT chở 6 người (không gắn toa xe)!', '#F59E0B');
+    if (isBusLineType(line?.type)) {
+      this.addFloatingText(740, 500, 'Xe buýt không gắn toa xe phụ!', '#F59E0B');
       return false;
     }
 
@@ -3290,8 +3402,8 @@ export class MetroEngine {
 
   public addCarriageToLine(lineId: string): boolean {
     const line = this.state.lines.find(l => l.id === lineId);
-    if (line?.type === 'feeder_bus') {
-      this.addFloatingText(740, 500, 'Xe buýt BRT chở 6 người (không gắn toa xe)!', '#F59E0B');
+    if (isBusLineType(line?.type)) {
+      this.addFloatingText(740, 500, 'Xe buýt không gắn toa xe phụ!', '#F59E0B');
       return false;
     }
 
@@ -3729,6 +3841,7 @@ export class MetroEngine {
       if (data.inventory) {
         this.state.inventory = {
           availableLines: data.inventory.availableLines ?? 3,
+          availableBusLines: data.inventory.availableBusLines ?? 4,
           unassignedTrains: data.inventory.unassignedTrains ?? 2,
           unassignedBuses: data.inventory.unassignedBuses ?? 2,
           carriages: data.inventory.carriages ?? 1,

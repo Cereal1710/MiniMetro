@@ -134,3 +134,14 @@ export const LINE_PALETTE = [
   { color: '#0EA5E9', darkColor: '#0369A1', textColor: '#FFFFFF', name: 'Tuyến 14 - Da Trời / Sky' },
   { color: '#D97706', darkColor: '#92400E', textColor: '#FFFFFF', name: 'Tuyến 15 - Hoàng Kim / Bronze' },
 ];
+
+export const BUS_PALETTE = [
+  { color: '#F59E0B', darkColor: '#B45309', textColor: '#FFFFFF', name: 'Buýt 01 - Vàng Nghệ / Amber' },
+  { color: '#06B6D4', darkColor: '#0E7490', textColor: '#FFFFFF', name: 'Buýt 02 - Lục Lam / Teal Cyan' },
+  { color: '#F97316', darkColor: '#C2410C', textColor: '#FFFFFF', name: 'Buýt 03 - Cam Đậm / Tangerine' },
+  { color: '#84CC16', darkColor: '#4D7C0F', textColor: '#FFFFFF', name: 'Buýt 04 - Xanh Mạ / Lime' },
+  { color: '#EC4899', darkColor: '#BE185D', textColor: '#FFFFFF', name: 'Buýt 05 - Hồng Sen / Rose Pink' },
+  { color: '#6366F1', darkColor: '#4338CA', textColor: '#FFFFFF', name: 'Buýt 06 - Chàm Sâu / Indigo' },
+  { color: '#14B8A6', darkColor: '#0F766E', textColor: '#FFFFFF', name: 'Buýt 07 - Ngọc Bích / Jade' },
+  { color: '#A855F7', darkColor: '#7E22CE', textColor: '#FFFFFF', name: 'Buýt 08 - Tím Oải Hương / Violet' },
+];

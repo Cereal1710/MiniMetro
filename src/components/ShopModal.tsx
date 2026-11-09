@@ -22,6 +22,7 @@ interface ShopModalProps {
   onBuyTransitAdContract?: () => void;
   onBuyRailGrinder?: () => void;
   railGrinderBoostUntil?: number;
+  onBuyBusLineSlot?: () => void;
 }
 
 export const ShopModal: React.FC<ShopModalProps> = ({
@@ -34,6 +35,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   onClose,
   onBuyTrain,
   onBuyBus,
+  onBuyBusLineSlot,
   onBuyCarriage,
   onBuyLine,
   onBuyInterchange,
@@ -89,10 +91,10 @@ export const ShopModal: React.FC<ShopModalProps> = ({
       countLabelEn: 'Depot'
     },
     {
-      titleVi: 'Xe Buýt Nhanh BRT Mới',
-      titleEn: 'New Feeder BRT Bus',
-      descVi: 'Bổ sung 1 xe buýt nhanh BRT (6 chỗ, qua cầu đường bộ miễn phí) vào kho buýt.',
-      descEn: 'Add 1 Feeder BRT bus (6 capacity, free road bridges) to your bus depot.',
+      titleVi: 'Xe Buýt Mới (Thường / BRT)',
+      titleEn: 'New Bus Vehicle',
+      descVi: 'Bổ sung 1 xe buýt (6 chỗ buýt thường / 4 chỗ BRT, qua cầu miễn phí) vào kho buýt.',
+      descEn: 'Add 1 bus (6 capacity regular / 4 capacity BRT, free road bridges) to your bus depot.',
       cost: busCost,
       icon: <span className="text-xl leading-none">🚌</span>,
       canBuy: money >= busCost && !!onBuyBus,
@@ -126,6 +128,19 @@ export const ShopModal: React.FC<ShopModalProps> = ({
       currentCount: `${activeLinesCount}/${inventory.availableLines}`,
       countLabelVi: 'Đang dùng',
       countLabelEn: 'Active'
+    },
+    {
+      titleVi: 'Hạn Mức Tuyến Xe Buýt Mới',
+      titleEn: 'New City Bus Line Slot',
+      descVi: 'Mở thêm 1 slot tuyến xe buýt đô thị mới (tối đa 12 tuyến buýt song song).',
+      descEn: 'Unlock 1 additional city bus line slot (max 12 bus routes).',
+      cost: 500 + ((inventory.availableBusLines ?? 6) - 4) * 150,
+      icon: <span className="text-xl leading-none">🚌</span>,
+      canBuy: money >= (500 + ((inventory.availableBusLines ?? 6) - 4) * 150) && (inventory.availableBusLines ?? 6) < 12 && !!onBuyBusLineSlot,
+      action: onBuyBusLineSlot || (() => {}),
+      currentCount: `${inventory.availableBusLines ?? 6}/12`,
+      countLabelVi: 'Hạn mức',
+      countLabelEn: 'Quota'
     },
     {
       titleVi: 'Hợp Đồng Quảng Cáo Thân Tàu (1 Tuần)',
